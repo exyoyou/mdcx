@@ -74,6 +74,7 @@ class ManualConfig:
         "prestige",
         "theporndb",
         "xcity",
+        "javhdporn",
     ]
 
     # 刮削过程所需预设值
@@ -371,7 +372,8 @@ class ManualConfig:
         "zb": "ZoliBoy",
     }
     official = {
-        "https://s1s1s1.com": "sivr|ssis|ssni|snis|soe|oned|one|onsd|ofje|sps|tksoe",  # https://s1s1s1.com/search/list?keyword=soe
+        # https://s1s1s1.com/search/list?keyword=soe
+        "https://s1s1s1.com": "sivr|ssis|ssni|snis|soe|oned|one|onsd|ofje|sps|tksoe",
         "https://moodyz.com": "mdvr|midv|mide|midd|mibd|mimk|miid|migd|mifd|miae|miad|miaa|mdl|mdj|mdi|mdg|mdf|mde|mdld|mded|mizd|mird|mdjd|rmid|mdid|mdmd|mimu|mdpd|mivd|mdud|mdgd|mdvd|mias|miqd|mint|rmpd|mdrd|tkmide|tkmidd|kmide|tkmigd|mdfd|rmwd|miab",
         "https://www.madonna-av.com": "juvr|jusd|juq|juy|jux|jul|juk|juc|jukd|jusd|oba|jufd|roeb|roe|ure|mdon|jfb|obe|jums",
         "https://www.wanz-factory.com": "wavr|waaa|bmw|wanz",
@@ -537,6 +539,7 @@ class ManualConfig:
         "fantastica": "fantastica",
         "theporndb": "theporndb",
         "prestige": "prestige",
+        "javhdporn": "javhdporn",
     }
     char_list = [
         "[高清] (中文字幕)",
@@ -562,9 +565,11 @@ class ManualConfig:
         "导演剪辑最终版",
         "堂友",
     ]
-    all_key_word = ["title", "originaltitle", "outline", "originalplot", "series", "director", "studio", "publisher"]
+    all_key_word = ["title", "originaltitle", "outline",
+                    "originalplot", "series", "director", "studio", "publisher"]
     all_rep_word = {
-        "&amp;": "＆",  # 将网页中存在二次抓取的&amp;(实际意义为&)的字符全局替换成＆（大写的&，不会被emby误判，显示更美观）
+        # 将网页中存在二次抓取的&amp;(实际意义为&)的字符全局替换成＆（大写的&，不会被emby误判，显示更美观）
+        "&amp;": "＆",
         "&lt;": "<",  # 将网页中存在二次抓取的&lt;(实际意义为<)的字符全局替换成<
         "&gt;": ">",  # 将网页中存在二次抓取的&gt;(实际意义为>)的字符替全局换成>
         "&apos;": "'",  # 将网页中存在二次抓取的&apos;(实际意义为')的字符全局替换成'
@@ -575,7 +580,8 @@ class ManualConfig:
         "&rarr;": "→",  # 将网页中存在二次抓取的&rarr;(实际意义为→)的字符全局替换成→
         "<br/>": "",  # 将网页中存在的隐藏换行符全局替换成空白
         "&": "＆",  # 将网页本身抓取到的&全局替换成＆（大写的&，不会被emby误判，避免Emby的nfo读取错误，显示更美观）
-        "&mdash;": "—",  # 将网页中存在二次抓取的&mdash;(实际意义为—破折号)的字符全局替换成—，破折号”—“不等于数字“一”
+        # 将网页中存在二次抓取的&mdash;(实际意义为—破折号)的字符全局替换成—，破折号”—“不等于数字“一”
+        "&mdash;": "—",
         "<": "＜",  # 将网页中存在二次抓取的<字符全局替换成＜（大写的＜，不会被emby误判，避免Emby的nfo读取错误，显示更美观）
         ">": "＞",  # 将网页中存在二次抓取的>字符全局替换成＞（大写的＞，不会被emby误判，避免Emby的nfo读取错误，显示更美观）
         "・": "·",  # 将网页本身的・（人名间隔号）全局替换成·

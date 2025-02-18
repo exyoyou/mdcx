@@ -3824,6 +3824,7 @@ class Ui_MDCx(object):
         self.comboBox_website_all.addItem("")
         self.comboBox_website_all.addItem("")
         self.comboBox_website_all.addItem("")
+        self.comboBox_website_all.addItem("")
         self.gridLayout_28.addWidget(self.comboBox_website_all, 3, 1, 1, 1)
         self.label_315 = QtWidgets.QLabel(self.layoutWidget2)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
@@ -9334,6 +9335,15 @@ class Ui_MDCx(object):
         self.gridLayout_10 = QtWidgets.QGridLayout(self.gridLayoutWidget_10)
         self.gridLayout_10.setContentsMargins(0, 0, 0, 0)
         self.gridLayout_10.setObjectName("gridLayout_10")
+        self.plainTextEdit_cookie_javhdporn = QtWidgets.QPlainTextEdit(self.gridLayoutWidget_10)
+        self.plainTextEdit_cookie_javhdporn.setMinimumSize(QtCore.QSize(300, 80))
+        self.plainTextEdit_cookie_javhdporn.setAccessibleDescription("")
+        self.plainTextEdit_cookie_javhdporn.setStyleSheet(" border: 1px solid rgba(0,0,0, 50);\n"
+" border-radius: 1px;\n"
+"font: \"Courier\";")
+        self.plainTextEdit_cookie_javhdporn.setObjectName("plainTextEdit_cookie_javhdporn")
+        self.gridLayout_10.addWidget(self.plainTextEdit_cookie_javhdporn, 2, 1, 1, 1)
+
         self.plainTextEdit_cookie_javbus = QtWidgets.QPlainTextEdit(self.gridLayoutWidget_10)
         self.plainTextEdit_cookie_javbus.setMinimumSize(QtCore.QSize(300, 80))
         self.plainTextEdit_cookie_javbus.setAccessibleDescription("")
@@ -11195,6 +11205,7 @@ class Ui_MDCx(object):
         self.comboBox_website_all.setItemText(32, _translate("MDCx", "dahlia"))
         self.comboBox_website_all.setItemText(33, _translate("MDCx", "prestige"))
         self.comboBox_website_all.setItemText(34, _translate("MDCx", "javday"))
+        self.comboBox_website_all.setItemText(35, _translate("MDCx", "javhdporn"))
         self.label_315.setText(_translate("MDCx", "⚠️ 下载剧照、预告片，请选择「字段优先」或「指定网站」！「速度优先」信息不全！"))
         self.pushButton_scrape_note.setText(_translate("MDCx", "刮削不到？看这里！"))
         self.groupBox_54.setTitle(_translate("MDCx", "封面图"))

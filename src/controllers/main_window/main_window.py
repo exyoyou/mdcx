@@ -74,6 +74,7 @@ class MyMAinWindow(QMainWindow):
     net_logs_show = pyqtSignal(str)  # 显示网络检测日志信号
     set_javdb_cookie = pyqtSignal(str)  # 加载javdb cookie文本内容到设置页面
     set_javbus_cookie = pyqtSignal(str)  # 加载javbus cookie文本内容到设置页面
+    set_javhdporn_status = pyqtSignal(str)  # javhdporn 检查状态更新
     set_javbus_status = pyqtSignal(str)  # javbus 检查状态更新
     set_label_file_path = pyqtSignal(str)  # 主界面更新路径信息显示
     set_pic_pixmap = pyqtSignal(list, list)  # 主界面显示封面、缩略图
@@ -2197,6 +2198,7 @@ class MyMAinWindow(QMainWindow):
                 "nanpa": ["https://nanpa-japan.jp", ""],
                 "hajimekikaku": ["https://hajimekikaku.com", ""],
                 "hhh-av": ["https://hhh-av.com", ""],
+                "javhdporn": ["https://www4.javhdporn.net", ""],
             }
 
             for website in config.SUPPORTED_WEBSITES:

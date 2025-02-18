@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from threading import Lock
 from urllib.parse import quote
-
+import json
 # import cloudscraper
 import curl_cffi.requests
 import requests
@@ -56,8 +56,10 @@ except:
 class WebRequests:
     def __init__(self):
         self.session_g = requests.Session()
-        self.session_g.mount("https://", requests.adapters.HTTPAdapter(pool_connections=100, pool_maxsize=100))
-        self.session_g.mount("http://", requests.adapters.HTTPAdapter(pool_connections=100, pool_maxsize=100))
+        self.session_g.mount(
+            "https://", requests.adapters.HTTPAdapter(pool_connections=100, pool_maxsize=100))
+        self.session_g.mount(
+            "http://", requests.adapters.HTTPAdapter(pool_connections=100, pool_maxsize=100))
         # self.scraper = cloudscraper.create_scraper(
         #     browser={'browser': 'firefox', 'platform': 'windows', 'mobile': False})  # returns a CloudScraper instance
         self.lock = Lock()
@@ -150,7 +152,8 @@ class WebRequests:
                         pass
                     else:
                         error_info = f"{response.status_code} {url}"
-                        signal.add_log(f"🔴 重试 [{i + 1}/{retry_times}] {error_info}")
+                        signal.add_log(
+                            f"🔴 重试 [{i + 1}/{retry_times}] {error_info}")
                         continue
                 else:
                     signal.add_log(f"✅ 成功 {url}")
@@ -211,7 +214,8 @@ class WebRequests:
                     )
                 if response.status_code > 299:
                     error_info = f"{response.status_code} {url}"
-                    signal.add_log(f"🔴 重试 [{i + 1}/{retry_times}] {error_info}")
+                    signal.add_log(
+                        f"🔴 重试 [{i + 1}/{retry_times}] {error_info}")
                     continue
                 else:
                     signal.add_log(f"✅ POST成功 {url}")
@@ -267,7 +271,8 @@ class WebRequests:
 
         for _ in range(int(retry_times)):
             try:
-                response = self.session_g.head(url, headers=headers, proxies=proxies, timeout=timeout, verify=False)
+                response = self.session_g.head(
+                    url, headers=headers, proxies=proxies, timeout=timeout, verify=False)
                 file_size = response.headers.get("Content-Length")
                 return file_size
             except:
@@ -308,7 +313,8 @@ class WebRequests:
         MB = 1024**2
         file_size = int(file_size)
         each_size = min(int(1 * MB), file_size)
-        parts = [(s, min(s + each_size, file_size)) for s in range(0, file_size, each_size)]
+        parts = [(s, min(s + each_size, file_size))
+                 for s in range(0, file_size, each_size)]
         # print(f'分块数：{len(parts)} \n')
 
         # 先写入一个文件
@@ -390,7 +396,8 @@ class WebRequests:
                     return response.headers, response.text
                 else:
                     error_info = f"{response.status_code} {url}"
-                    signal.add_log(f"🔴 重试 [{i + 1}/{retry_times}] {error_info}")
+                    signal.add_log(
+                        f"🔴 重试 [{i + 1}/{retry_times}] {error_info}")
                     continue
             except Exception as e:
                 error_info = f"{url}\nError: {e}"
@@ -399,6 +406,45 @@ class WebRequests:
         signal.add_log(f"🔴 请求失败！{error_info}")
         return False, error_info
 
+    def curl_html_cf(self, url):
+        """
+        curl请求(模拟浏览器指纹)
+        """
+        flaresolverr_url = "http://192.168.100.100:8191/v1"
+        data = {}
+        headers = {
+            'Content-Type': 'application/json',
+            # 'Content-Type': 'application/x-www-form-urlencoded',
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "zh,en;q=0.9,zh-CN;q=0.8,km;q=0.7",
+            "cache-control": "max-age=0",
+            "content-length": "7149",
+            # "content-type": "application/x-www-form-urlencoded",
+            "cookie": "_ga=GA1.1.129527887.1738328095; _ga_EPCC3CFKF2=GS1.1.1738389670.1.1.1738389856.0.0.0; _ga_1N46ZBVB4W=GS1.1.1739803409.9.0.1739803409.0.0.0; cf_clearance=p1yYAyodUZAY41GMRP0H96SMLDDHBYR1EZhojzE.umQ-1739803412-1.2.1.1-GPKzZ3xMcPi0VNCEa_leHlj54fjdvH4uug_ojA2ROQsFS8oI91C01XimfDZEhIdkNMyYsW_N51v7AdhkbHUqUGSJmp558qZYJI.7MjWRedSE8o5ilT3EH2GYOZBd4xLK9gTMLEq8AdM2wQQxPVNMjd9.UDXPs7mZdAuBOo3bnEVkQ1vkyRkueY9MTEoH00H69X1D7_QWbDcvTV7xWcnq6Sxsf_btQt5G8blsMBkmnA2nm3Ca0VoDxya2D1SnS_Gnh4AHHvJ6dWWqlzXR4QJLIUFNPSg48l_KuRLmDtBBjDNymC_tupMeXUkPhHeSaFbWDNsUknZJIuhLU.fgXzLCDQ",
+            "dnt": "1",
+            "if-modified-since": "Sat, 15 Feb 2025 16:06:01 GMT",
+            "origin": "https://www4.javhdporn.net",
+            "priority": "u=0, i",
+            # "referer": "https://www4.javhdporn.net/?__cf_chl_tk=pFr1dRGK2mGN7GjjbQyn.VQmOt95w4vrsN2rqH.qwk4-1739803409-1.0.1.1-c46CH.zkl23m0MboFKKymt_o0NQDDd6lkQZVj6_Sl7A",
+            "sec-ch-ua": '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-ch-ua-platform-version": '"19.0.0"',
+        }
+        payload = {
+            'cmd': "request.post",
+            'url': url,
+            'maxTimeout': 60000,
+            'userAgent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            'postData': data,
+            'headers': headers,
+        }
+        response = requests.post(
+            flaresolverr_url, headers=headers, json=payload)
+        print(response.text)
+        return response.ok, response.text
+
 
 web = WebRequests()
 get_html = web.get_html
@@ -406,6 +452,7 @@ post_html = web.post_html
 scraper_html = web.curl_html
 multi_download = web.multi_download
 curl_html = web.curl_html
+curl_html_cf = web.curl_html_cf
 
 
 def url_encode(url):
@@ -460,7 +507,8 @@ def check_url(url, length=False, real_url=False):
             # 状态码 > 299，表示请求失败，视为不可用
             if r.status_code > 299:
                 error_info = f"{r.status_code} {url}"
-                signal.add_log(f"🔴 请求失败！ 重试: [{j + 1}/{retry_times}] {error_info}")
+                signal.add_log(
+                    f"🔴 请求失败！ 重试: [{j + 1}/{retry_times}] {error_info}")
                 continue
 
             # 返回重定向的url
@@ -482,7 +530,8 @@ def check_url(url, length=False, real_url=False):
             https://www.javbus.com/imgs/cover/nopic.jpg
             https://assets.tumblr.com/images/media_violation/community_guidelines_v1_1280.png tumblr删除的图
             """
-            bad_url_keys = ["now_printing", "nowprinting", "noimage", "nopic", "media_violation"]
+            bad_url_keys = ["now_printing", "nowprinting",
+                            "noimage", "nopic", "media_violation"]
             for each_key in bad_url_keys:
                 if each_key in true_url:
                     signal.add_log(f"🔴 检测未通过！当前图片已被网站删除 {url}")
@@ -507,7 +556,8 @@ def check_url(url, length=False, real_url=False):
 
             # 如果返回内容的文件大小 < 8k，视为不可用
             elif int(content_length) < 8192:
-                signal.add_log(f"🔴 检测未通过！返回大小({content_length}) < 8k {true_url}")
+                signal.add_log(
+                    f"🔴 检测未通过！返回大小({content_length}) < 8k {true_url}")
                 return 0
             signal.add_log(f"✅ 检测通过！返回大小({content_length}) {true_url}")
             return int(content_length) if length else true_url
@@ -591,7 +641,8 @@ def get_amazon_data(req_url):
                 "Host": "www.amazon.co.jp",
                 "User-Agent": get_user_agent(),
             }
-            result, html_info = get_html(req_url, headers=headers, keep=False, back_cookie=True)
+            result, html_info = get_html(
+                req_url, headers=headers, keep=False, back_cookie=True)
 
         if not result:
             return False, html_info
@@ -599,7 +650,8 @@ def get_amazon_data(req_url):
     if "540-0002" not in html_info:
         try:
             # 获取 anti_csrftoken_a2z
-            anti_csrftoken_a2z = re.findall(r"anti-csrftoken-a2z([^}]+)", html_info)[0].replace("&quot;", "").strip(":")
+            anti_csrftoken_a2z = re.findall(
+                r"anti-csrftoken-a2z([^}]+)", html_info)[0].replace("&quot;", "").strip(":")
             session_id = re.findall(r'sessionId: "([^"]+)', html_info)[0]
             ubid_acbjp = ""
             if "ubid-acbjp" in str(result):
@@ -607,7 +659,8 @@ def get_amazon_data(req_url):
                     ubid_acbjp = result["set-cookie"]
                 except:
                     try:
-                        ubid_acbjp = re.findall(r"ubid-acbjp=([^ ]+)", str(result))[0]
+                        ubid_acbjp = re.findall(
+                            r"ubid-acbjp=([^ ]+)", str(result))[0]
                     except:
                         pass
             headers_o = {
@@ -694,7 +747,8 @@ def get_imgsize(url):
 
     for _ in range(int(retry_times)):
         try:
-            response = requests.get(url, headers=headers, proxies=proxies, timeout=timeout, verify=False, stream=True)
+            response = requests.get(
+                url, headers=headers, proxies=proxies, timeout=timeout, verify=False, stream=True)
             if response.status_code == 200:
                 file_head = BytesIO()
                 chunk_size = 1024 * 10
@@ -765,7 +819,8 @@ def ping_host(host_address):
     result_list = [None] * count
     thread_list = [0] * count
     for i in range(count):
-        thread_list[i] = threading.Thread(target=_ping_host_thread, args=(host_address, result_list, i))
+        thread_list[i] = threading.Thread(
+            target=_ping_host_thread, args=(host_address, result_list, i))
         thread_list[i].start()
     for i in range(count):
         thread_list[i].join()
@@ -807,7 +862,8 @@ def check_theporndb_api_token():
         tips = "❌ 未填写 API Token，影响欧美刮削！可在「设置」-「网络」添加！"
     else:
         try:
-            response = requests.get(url, headers=headers, proxies=proxies, timeout=timeout, verify=False)
+            response = requests.get(
+                url, headers=headers, proxies=proxies, timeout=timeout, verify=False)
             if response.status_code == 401 and "Unauthenticated" in str(response.text):
                 tips = "❌ API Token 错误！影响欧美刮削！请到「设置」-「网络」中修改。"
             elif response.status_code == 200:
@@ -819,7 +875,8 @@ def check_theporndb_api_token():
                 tips = f"❌ 连接失败！请检查网络或代理设置！ {response.status_code} {response.text}"
         except Exception as e:
             tips = f"❌ 连接失败!请检查网络或代理设置！ {e}"
-    signal.show_log_text(tips.replace("❌", " ❌ ThePornDB").replace("✅", " ✅ ThePornDB"))
+    signal.show_log_text(tips.replace(
+        "❌", " ❌ ThePornDB").replace("✅", " ✅ ThePornDB"))
     return tips
 
 
@@ -837,10 +894,12 @@ def _get_pic_by_google(pic_url):
             url_list = url_list_middle
             big_pic = False
         if url_list:
-            req_url = "https://www.google.com" + url_list[0].replace("amp;", "")
+            req_url = "https://www.google.com" + \
+                url_list[0].replace("amp;", "")
             result, response = get_html(req_url, keep=False)
             if result:
-                url_list = re.findall(r'\["(http[^"]+)",(\d{3,4}),(\d{3,4})\],[^[]', response)
+                url_list = re.findall(
+                    r'\["(http[^"]+)",(\d{3,4}),(\d{3,4})\],[^[]', response)
                 # 优先下载放前面
                 new_url_list = []
                 for each_url in url_list.copy():
@@ -894,7 +953,8 @@ def get_big_pic_by_google(pic_url, poster=False):
     if url and int(pic_size[1]) < 1000:  # poster，图片高度小于 1500，重新搜索一次
         url, pic_size, big_pic = _get_pic_by_google(url)
     if pic_size and (
-        big_pic or "blogger.googleusercontent.com" in url or int(pic_size[1]) > 560
+        big_pic or "blogger.googleusercontent.com" in url or int(
+            pic_size[1]) > 560
     ):  # poster，大图或高度 > 560 时，使用该图片
         return url, pic_size
     else:

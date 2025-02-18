@@ -48,6 +48,7 @@ from models.crawlers import (
     prestige,
     theporndb,
     xcity,
+    javhdporn,
 )
 from models.entity.enums import FileMode
 
@@ -225,6 +226,8 @@ def _call_crawler(json_data, website, language, file_number, short_number, mosai
         json_data = json.loads(kin8.main(file_number, appoint_url, log_info, req_web, language))
     elif website == "javday":
         json_data = json.loads(javday.main(file_number, appoint_url, log_info, req_web, language))
+    elif website == "javhdporn":
+        json_data = json.loads(javhdporn.main(file_number, appoint_url, log_info, req_web, language))
     else:
         json_data = json.loads(javdb.main(file_number, appoint_url, log_info, req_web, language))
 
