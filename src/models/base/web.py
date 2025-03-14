@@ -8,7 +8,7 @@ from io import BytesIO
 from threading import Lock
 from urllib.parse import quote
 import json
-# import cloudscraper
+import cloudscraper
 import curl_cffi.requests
 import requests
 import urllib3.util.connection as urllib3_cn
@@ -60,8 +60,8 @@ class WebRequests:
             "https://", requests.adapters.HTTPAdapter(pool_connections=100, pool_maxsize=100))
         self.session_g.mount(
             "http://", requests.adapters.HTTPAdapter(pool_connections=100, pool_maxsize=100))
-        # self.scraper = cloudscraper.create_scraper(
-        #     browser={'browser': 'firefox', 'platform': 'windows', 'mobile': False})  # returns a CloudScraper instance
+        self.scraper = cloudscraper.create_scraper(
+            browser={'browser': 'firefox', 'platform': 'windows', 'mobile': False})  # returns a CloudScraper instance
         self.lock = Lock()
         self.pool = ThreadPoolExecutor(32)
         self.curl_session = curl_cffi.requests.Session(max_redirects=10)
@@ -229,39 +229,39 @@ class WebRequests:
         signal.add_log(f"🔴 请求失败！{error_info}")
         return False, error_info
 
-    # def scraper_html(self, url: str, proxies=True, cookies=None, headers=None):
-    #     # 获取代理信息
-    #     is_docker = config.is_docker
-    #     timeout = config.timeout
-    #     retry_times = config.retry
-    #     if is_docker:
-    #         return self.get_html(url, proxies=proxies, cookies=cookies)
-    #     if proxies:
-    #         proxies = config.proxies
-    #     else:
-    #         proxies = {
-    #             "http": None,
-    #             "https": None,
-    #         }
-    #
-    #     signal.add_log(f'🔎 Scraper请求 {url}')
-    #     for i in range(retry_times):
-    #         try:
-    #             with self.scraper.get(url, headers=headers, proxies=proxies, cookies=cookies, timeout=timeout) as f:
-    #                 response = f
-    #
-    #             if response.status_code > 299:
-    #                 error_info = f"{response.status_code} {url} {str(f.cookies).replace('<RequestsCookieJar[', '').replace(']>', '')}"
-    #                 return False, error_info
-    #             else:
-    #                 signal.add_log(f'✅ Scraper成功 {url}')
-    #             response.encoding = 'utf-8'
-    #             return True, f.text
-    #         except Exception as e:
-    #             error_info = '%s\nError: %s' % (url, e)
-    #             signal.add_log('🔴 重试 [%s/%s] %s' % (i + 1, retry_times, error_info))
-    #     signal.add_log(f"🔴 请求失败！{error_info}")
-    #     return False, error_info
+    def scraper_html(self, url: str, proxies=True, cookies=None, headers=None):
+        # 获取代理信息
+        is_docker = config.is_docker
+        timeout = config.timeout
+        retry_times = config.retry
+        if is_docker:
+            return self.get_html(url, proxies=proxies, cookies=cookies)
+        if proxies:
+            proxies = config.proxies
+        else:
+            proxies = {
+                "http": None,
+                "https": None,
+            }
+    
+        signal.add_log(f'🔎 Scraper请求 {url}')
+        for i in range(retry_times):
+            try:
+                with self.scraper.get(url, headers=headers, proxies=proxies, cookies=cookies, timeout=timeout) as f:
+                    response = f
+    
+                if response.status_code > 299:
+                    error_info = f"{response.status_code} {url} {str(f.cookies).replace('<RequestsCookieJar[', '').replace(']>', '')}"
+                    return False, error_info
+                else:
+                    signal.add_log(f'✅ Scraper成功 {url}')
+                response.encoding = 'utf-8'
+                return True, f.text
+            except Exception as e:
+                error_info = '%s\nError: %s' % (url, e)
+                signal.add_log('🔴 重试 [%s/%s] %s' % (i + 1, retry_times, error_info))
+        signal.add_log(f"🔴 请求失败！{error_info}")
+        return False, error_info
 
     def _get_filesize(self, url):
         proxies = config.proxies
@@ -411,7 +411,6 @@ class WebRequests:
         curl请求(模拟浏览器指纹)
         """
         flaresolverr_url = "http://192.168.100.100:8191/v1"
-        data = {}
         headers = {
             'Content-Type': 'application/json',
             # 'Content-Type': 'application/x-www-form-urlencoded',
@@ -433,17 +432,20 @@ class WebRequests:
             "sec-ch-ua-platform-version": '"19.0.0"',
         }
         payload = {
-            'cmd': "request.post",
+            'cmd': "request.get",
             'url': url,
             'maxTimeout': 60000,
-            'userAgent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-            'postData': data,
-            'headers': headers,
+            # 'userAgent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            # 'postData': data,
+            # 'headers': headers,
         }
         response = requests.post(
             flaresolverr_url, headers=headers, json=payload)
-        print(response.text)
-        return response.ok, response.text
+        solution = response.text
+        if response.ok:
+            solution = json.loads(response.text)
+            return response.ok, solution['solution']['response']
+        return False, ""
 
 
 web = WebRequests()
