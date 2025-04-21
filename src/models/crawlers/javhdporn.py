@@ -6,7 +6,7 @@ import time  # yapf: disable # NOQA: E402
 import urllib3
 from lxml import etree
 
-from models.base.web import scraper_html
+from models.base.web import cf_html
 from models.config.config import config
 
 urllib3.disable_warnings()  # yapf: disable
@@ -70,7 +70,7 @@ def main(number, appoint_url="", log_info="", req_web="", language="zh_cn"):
         if real_url:
             debug_info = f"番号地址: {real_url} "
             log_info += web_info + debug_info
-            result, html_content = scraper_html(real_url,)
+            result, html_content = cf_html(real_url,)
             if not result:
                 debug_info = f"网络请求错误: {html_content}"
                 log_info += web_info + debug_info
@@ -78,7 +78,7 @@ def main(number, appoint_url="", log_info="", req_web="", language="zh_cn"):
 
             html_info = etree.fromstring(html_content, etree.HTMLParser())
             title = getTitle(html_info)  # 获取标题
-            if not title:
+            if not title or title == 'Oops! That page can’t be found.':
                 debug_info = "数据获取失败: 未获取到title！"
                 log_info += web_info + debug_info
                 raise Exception(debug_info)
@@ -128,6 +128,8 @@ def main(number, appoint_url="", log_info="", req_web="", language="zh_cn"):
                     "mosaic": mosaic,
                     "website": real_url,
                     "wanted": "",
+                    "all_actor_photo":"",
+                    'actor_photo':'',
                 }
                 debug_info = "数据获取成功！"
                 log_info += web_info + debug_info

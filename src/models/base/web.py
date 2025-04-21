@@ -60,7 +60,7 @@ class WebRequests:
             "https://", requests.adapters.HTTPAdapter(pool_connections=100, pool_maxsize=100))
         self.session_g.mount(
             "http://", requests.adapters.HTTPAdapter(pool_connections=100, pool_maxsize=100))
-        self.scraper = cloudscraper.create_scraper(
+        self.scraper = cloudscraper.create_scraper(delay=5,
             browser={'browser': 'firefox', 'platform': 'windows', 'mobile': False})  # returns a CloudScraper instance
         self.lock = Lock()
         self.pool = ThreadPoolExecutor(32)
@@ -229,9 +229,9 @@ class WebRequests:
         signal.add_log(f"🔴 请求失败！{error_info}")
         return False, error_info
 
-    def scraper_html(self, url: str, proxies=True, cookies=None, headers=None):
+    def scraper_html(self, url: str, proxies=False, cookies=None, headers=None):
         # 获取代理信息
-        is_docker = config.is_docker
+        is_docker = False #config.is_docker
         timeout = config.timeout
         retry_times = config.retry
         if is_docker:
@@ -406,30 +406,13 @@ class WebRequests:
         signal.add_log(f"🔴 请求失败！{error_info}")
         return False, error_info
 
-    def curl_html_cf(self, url):
+    def cf_html(self, url):
         """
         curl请求(模拟浏览器指纹)
         """
         flaresolverr_url = "http://192.168.100.100:8191/v1"
         headers = {
             'Content-Type': 'application/json',
-            # 'Content-Type': 'application/x-www-form-urlencoded',
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "accept-encoding": "gzip, deflate, br, zstd",
-            "accept-language": "zh,en;q=0.9,zh-CN;q=0.8,km;q=0.7",
-            "cache-control": "max-age=0",
-            "content-length": "7149",
-            # "content-type": "application/x-www-form-urlencoded",
-            "cookie": "_ga=GA1.1.129527887.1738328095; _ga_EPCC3CFKF2=GS1.1.1738389670.1.1.1738389856.0.0.0; _ga_1N46ZBVB4W=GS1.1.1739803409.9.0.1739803409.0.0.0; cf_clearance=p1yYAyodUZAY41GMRP0H96SMLDDHBYR1EZhojzE.umQ-1739803412-1.2.1.1-GPKzZ3xMcPi0VNCEa_leHlj54fjdvH4uug_ojA2ROQsFS8oI91C01XimfDZEhIdkNMyYsW_N51v7AdhkbHUqUGSJmp558qZYJI.7MjWRedSE8o5ilT3EH2GYOZBd4xLK9gTMLEq8AdM2wQQxPVNMjd9.UDXPs7mZdAuBOo3bnEVkQ1vkyRkueY9MTEoH00H69X1D7_QWbDcvTV7xWcnq6Sxsf_btQt5G8blsMBkmnA2nm3Ca0VoDxya2D1SnS_Gnh4AHHvJ6dWWqlzXR4QJLIUFNPSg48l_KuRLmDtBBjDNymC_tupMeXUkPhHeSaFbWDNsUknZJIuhLU.fgXzLCDQ",
-            "dnt": "1",
-            "if-modified-since": "Sat, 15 Feb 2025 16:06:01 GMT",
-            "origin": "https://www4.javhdporn.net",
-            "priority": "u=0, i",
-            # "referer": "https://www4.javhdporn.net/?__cf_chl_tk=pFr1dRGK2mGN7GjjbQyn.VQmOt95w4vrsN2rqH.qwk4-1739803409-1.0.1.1-c46CH.zkl23m0MboFKKymt_o0NQDDd6lkQZVj6_Sl7A",
-            "sec-ch-ua": '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
-            "sec-ch-ua-platform": '"Windows"',
-            "sec-ch-ua-platform-version": '"19.0.0"',
         }
         payload = {
             'cmd': "request.get",
@@ -451,10 +434,10 @@ class WebRequests:
 web = WebRequests()
 get_html = web.get_html
 post_html = web.post_html
-scraper_html = web.curl_html
+scraper_html = web.scraper_html
 multi_download = web.multi_download
 curl_html = web.curl_html
-curl_html_cf = web.curl_html_cf
+cf_html = web.cf_html
 
 
 def url_encode(url):

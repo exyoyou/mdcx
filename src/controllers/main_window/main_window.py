@@ -1148,10 +1148,11 @@ class MyMAinWindow(QMainWindow):
             text, ok = QInputDialog.getText(
                 self,
                 "输入网址重新刮削",
-                f"文件名: {main_file_name}\n支持网站:airav_cc、airav、avsex、avsox、dmm、getchu、fc2"
-                f"、fc2club、fc2hub、iqqtv、jav321、javbus、javdb、freejavbt、javlibrary、mdtv"
-                f"、madouqu、mgstage、7mmtv、xcity、mywife、giga、faleno、dahlia、fantastica"
-                f"、prestige、hdouban、lulubar、love6、cnmdb、theporndb、kin8\n请输入番号对应的网址（不是网站首页地址！！！是番号页面地址！！！）:",
+                f"文件名: {main_file_name}\n支持网站:\nairav_cc、airav、avsex、avsox、dmm、getchu、fc2"
+                f"、\nfc2club、fc2hub、iqqtv、jav321、javbus、javdb、freejavbt、javlibrary、mdtv"
+                f"、\nmadouqu、mgstage、7mmtv、xcity、mywife、giga、faleno、dahlia、fantastica"
+                f"、\nprestige、hdouban、lulubar、love6、cnmdb、theporndb、kin8、javhdporn"
+                f"\nlocal是直接读json\n请输入番号对应的网址（不是网站首页地址！！！是番号页面地址！！！）:",
             )
             if ok and text:
                 website, url = deal_url(text)

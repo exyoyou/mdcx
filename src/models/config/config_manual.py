@@ -540,6 +540,7 @@ class ManualConfig:
         "theporndb": "theporndb",
         "prestige": "prestige",
         "javhdporn": "javhdporn",
+        "local":"local",
     }
     char_list = [
         "[高清] (中文字幕)",
