@@ -50,6 +50,7 @@ from models.crawlers import (
     xcity,
     javhdporn,
     local,
+    fc2cm,
 )
 from models.entity.enums import FileMode
 
@@ -231,6 +232,8 @@ def _call_crawler(json_data, website, language, file_number, short_number, mosai
         json_data = json.loads(javhdporn.main(file_number, appoint_url, log_info, req_web, language))
     elif website == "local":
         json_data = json.loads(local.main(file_number, appoint_url, log_info, req_web, language))
+    elif website == "fc2cm":
+        json_data = json.loads(fc2cm.main(file_number, appoint_url, log_info, req_web, language))
     else:
         json_data = json.loads(javdb.main(file_number, appoint_url, log_info, req_web, language))
 
