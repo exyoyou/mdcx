@@ -5,6 +5,7 @@
 """
 
 import os
+import random
 import re
 import traceback
 
@@ -60,6 +61,75 @@ def show_movie_info(json_data):
         json_data["logs"] += "\n     " + "%-13s" % key + ": " + str(value)
 
 
+# 生成临时的截图10张
+def save_tmp_frame_from_video(json_data):
+    img_count = 10
+    video_path = json_data["file_path"]
+    json_data["logs"] += f"\n开始保存截图{img_count}张"
+    # 打开视频文件
+    cap = cv2.VideoCapture(video_path)
+
+    if not cap.isOpened():
+        json_data["logs"] += "无法打开视频文件"
+        return
+
+    # 获取视频的总帧数
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    # 获取视频的帧率 (FPS)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    # 计算视频总时长 (秒)
+    total_length = frame_count / fps
+
+    # 分img_count次每次多少秒
+    sv_number = total_length / img_count
+
+    for num in range(img_count):
+        seconds = (num) * random.randint(
+            int(sv_number - sv_number * 0.9), int(sv_number + sv_number * 0.9)
+        )
+        if seconds <= 0:
+            seconds = 1
+        if seconds >= total_length:
+            seconds = total_length - 1
+        # 计算目标帧的位置
+        target_frame = int(fps * seconds)
+
+        # 设置视频位置到目标帧
+        cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+
+        # 读取该帧
+        success, frame = cap.read()
+
+        if success:
+            # 保存图像
+            img_path = f"./tmp_img/{num}.jpg"
+            # 获取文件夹路径
+            folder_path = os.path.dirname(img_path)
+
+            # 检查文件夹是否存在，如果不存在则创建
+            if not os.path.exists(folder_path):
+                os.makedirs(folder_path)
+                json_data["logs"] += f"\n文件夹 '{folder_path}' 已创建。"
+            else:
+                pass
+            cv2.imwrite(img_path, frame)
+            print(f"已保存帧为图像: {img_path}")
+            json_data["logs"] += f"\n已保存帧为图像: {img_path}"
+            if json_data.get("temp_image"):
+                pass
+            else:
+                json_data["temp_image"] = []
+            json_data["temp_image"].append(img_path)
+        else:
+            print("无法读取帧")
+            json_data["logs"] += f"\n保存截图失败：无法读取帧"
+
+    # 释放视频对象
+    cap.release()
+
+
 def get_video_size(json_data, file_path):
     # 获取本地分辨率 同时获取视频编码格式
     definition = ""
@@ -77,14 +147,19 @@ def get_video_size(json_data, file_path):
             ##使用opencv获取编码器格式
             codec = int(cap.get(cv2.CAP_PROP_FOURCC))
             codec_fourcc = (
-                chr(codec & 0xFF) + chr((codec >> 8) & 0xFF) + chr((codec >> 16) & 0xFF) + chr((codec >> 24) & 0xFF)
+                chr(codec & 0xFF)
+                + chr((codec >> 8) & 0xFF)
+                + chr((codec >> 16) & 0xFF)
+                + chr((codec >> 24) & 0xFF)
             )
 
         except Exception as e:
             signal.show_traceback_log(traceback.format_exc())
             signal.show_traceback_log(str(e))
             signal.show_log_text(traceback.format_exc())
-            signal.show_log_text(f" 🔴 无法获取视频分辨率！ 文件地址: {file_path}  错误信息: {e}")
+            signal.show_log_text(
+                f" 🔴 无法获取视频分辨率！ 文件地址: {file_path}  错误信息: {e}"
+            )
     elif hd_get == "path":
         file_path_temp = file_path.upper()
         if "8K" in file_path_temp:
@@ -129,7 +204,19 @@ def get_video_size(json_data, file_path):
         json_data["4K"] = "-" + definition
 
     # 去除标签中的分辨率率，使用本地读取的实际分辨率
-    remove_key = ["144P", "360P", "480P", "540P", "720P", "960P", "1080P", "1440P", "2160P", "4K", "8K"]
+    remove_key = [
+        "144P",
+        "360P",
+        "480P",
+        "540P",
+        "720P",
+        "960P",
+        "1080P",
+        "1440P",
+        "2160P",
+        "4K",
+        "8K",
+    ]
     tag = json_data["tag"]
     for each_key in remove_key:
         tag = tag.replace(each_key, "").replace(each_key.lower(), "")
@@ -156,7 +243,9 @@ def show_data_result(json_data, start_time):
         return False
     else:
         if config.show_web_log == "on":  # 字段刮削过程
-            json_data["logs"] += "\n 🌐 [website] %s" % json_data["req_web"].strip("-> ")
+            json_data["logs"] += "\n 🌐 [website] %s" % json_data["req_web"].strip(
+                "-> "
+            )
         try:
             if json_data["log_info"]:
                 json_data["logs"] += "\n" + json_data["log_info"].strip(" ").strip("\n")
@@ -164,7 +253,9 @@ def show_data_result(json_data, start_time):
             signal.show_log_text(traceback.format_exc())
         if config.show_from_log == "on":  # 字段来源信息
             if json_data["fields_info"]:
-                json_data["logs"] += "\n" + json_data["fields_info"].strip(" ").strip("\n")
+                json_data["logs"] += "\n" + json_data["fields_info"].strip(" ").strip(
+                    "\n"
+                )
         json_data["logs"] += "\n 🍀 Data done!(%ss)" % (get_used_time(start_time))
         return True
 
@@ -223,16 +314,25 @@ def get_new_release(release):
     if release_rule == "YYYY-MM-DD":
         return release
     year, month, day = re.findall(r"(\d{4})-(\d{2})-(\d{2})", release)[0]
-    return release_rule.replace("YYYY", year).replace("YY", year[-2:]).replace("MM", month).replace("DD", day)
+    return (
+        release_rule.replace("YYYY", year)
+        .replace("YY", year[-2:])
+        .replace("MM", month)
+        .replace("DD", day)
+    )
 
 
 def nfd2c(path):
     # 转换 NFC(mac nfc和nfd都能访问到文件，但是显示的是nfd，这里统一使用nfc，避免各种问题。
     # 日文浊音转换（mac的坑，osx10.12以下使用nfd，以上兼容nfc和nfd，只是显示成了nfd）
     if config.is_nfc:
-        new_path = unicodedata.normalize("NFC", path)  # Mac 会拆成两个字符，即 NFD，windwos是 NFC
+        new_path = unicodedata.normalize(
+            "NFC", path
+        )  # Mac 会拆成两个字符，即 NFD，windwos是 NFC
     else:
-        new_path = unicodedata.normalize("NFD", path)  # Mac 会拆成两个字符，即 NFD，windwos是 NFC
+        new_path = unicodedata.normalize(
+            "NFD", path
+        )  # Mac 会拆成两个字符，即 NFD，windwos是 NFC
     return new_path
 
 
@@ -289,7 +389,9 @@ def deal_some_field(json_data):
 
     # 去除标题中的/
     json_data["title"] = json_data["title"].replace("/", "#").strip(" -")
-    json_data["originaltitle"] = json_data["originaltitle"].replace("/", "#").strip(" -")
+    json_data["originaltitle"] = (
+        json_data["originaltitle"].replace("/", "#").strip(" -")
+    )
 
     # 去除素人番号前缀数字
     if "del_num" in fields_rule:
@@ -311,14 +413,23 @@ def get_movie_path_setting(file_path=""):
     movie_path = nfd2c(movie_path)
     end_folder_name = split_path(movie_path)[1]
     # 用户设置的软链接输出目录
-    softlink_path = config.softlink_path.replace("\\", "/").replace("end_folder_name", end_folder_name)
+    softlink_path = config.softlink_path.replace("\\", "/").replace(
+        "end_folder_name", end_folder_name
+    )
     # 用户设置的成功输出目录
-    success_folder = config.success_output_folder.replace("\\", "/").replace("end_folder_name", end_folder_name)
+    success_folder = config.success_output_folder.replace("\\", "/").replace(
+        "end_folder_name", end_folder_name
+    )
     # 用户设置的失败输出目录
-    failed_folder = config.failed_output_folder.replace("\\", "/").replace("end_folder_name", end_folder_name)
+    failed_folder = config.failed_output_folder.replace("\\", "/").replace(
+        "end_folder_name", end_folder_name
+    )
     # 用户设置的排除目录
     escape_folder_list = (
-        config.folders.replace("\\", "/").replace("end_folder_name", end_folder_name).replace("，", ",").split(",")
+        config.folders.replace("\\", "/")
+        .replace("end_folder_name", end_folder_name)
+        .replace("，", ",")
+        .split(",")
     )
     # 用户设置的剧照副本目录
     extrafanart_folder = config.extrafanart_folder.replace("\\", "/")
@@ -347,11 +458,20 @@ def get_movie_path_setting(file_path=""):
         temp_path = movie_path
         if config.scrape_softlink_path:
             temp_path = softlink_path
-        if "first_folder_name" in success_folder or "first_folder_name" in failed_folder:
-            first_folder_name = re.findall(r"^/?([^/]+)/", file_path[len(temp_path) :].replace("\\", "/"))
+        if (
+            "first_folder_name" in success_folder
+            or "first_folder_name" in failed_folder
+        ):
+            first_folder_name = re.findall(
+                r"^/?([^/]+)/", file_path[len(temp_path) :].replace("\\", "/")
+            )
             first_folder_name = first_folder_name[0] if first_folder_name else ""
-            success_folder = success_folder.replace("first_folder_name", first_folder_name)
-            failed_folder = failed_folder.replace("first_folder_name", first_folder_name)
+            success_folder = success_folder.replace(
+                "first_folder_name", first_folder_name
+            )
+            failed_folder = failed_folder.replace(
+                "first_folder_name", first_folder_name
+            )
 
     return (
         convert_path(movie_path),
@@ -361,3 +481,7 @@ def get_movie_path_setting(file_path=""):
         extrafanart_folder,
         softlink_path,
     )
+
+
+if __name__ == "__main__":
+    save_tmp_frame_from_video({"file_path": "./failed/PMAXVR-008.mp4", "logs": ""})

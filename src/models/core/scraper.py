@@ -43,6 +43,7 @@ from models.core.utils import (
     replace_word,
     show_data_result,
     show_movie_info,
+    save_tmp_frame_from_video,
 )
 from models.core.web import extrafanart_download, fanart_download, poster_download, thumb_download, trailer_download
 from models.entity.enums import FileMode
@@ -179,6 +180,9 @@ def _scrape_one_file(file_path, file_info, file_mode):
 
     # 更新视频分辨率
     get_video_size(json_data, file_path)
+
+    # 保存一下截图
+    save_tmp_frame_from_video(json_data)
 
     # 显示json_data内容
     show_movie_info(json_data)
