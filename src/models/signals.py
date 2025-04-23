@@ -34,6 +34,8 @@ class Signals(QObject):
     view_failed_list_settext = pyqtSignal(str)
     exec_show_list_name = pyqtSignal(str, str, object, str)
     logs_failed_show = pyqtSignal(str)  # 失败面板添加信息日志信号
+    select_img_show = pyqtSignal(list, str)  # 打开图片选择器
+    selected_img = pyqtSignal(list)  # 或图片选择器选择的图片
 
     # endregion
     def __init__(self):
@@ -47,7 +49,9 @@ class Signals(QObject):
             raise "手动停止刮削"
         try:
             with self.log_lock:
-                self.detail_log_list.append(f" ⏰ {time.strftime('%H:%M:%S', time.localtime())} {' '.join(text)}")
+                self.detail_log_list.append(
+                    f" ⏰ {time.strftime('%H:%M:%S', time.localtime())} {' '.join(text)}"
+                )
         except:
             pass
 
@@ -75,6 +79,14 @@ class Signals(QObject):
 
     def show_list_name(self, filename, result, json_data, real_number=""):
         self.exec_show_list_name.emit(filename, result, json_data, real_number)
+
+    # 打开图片选择器
+    def show_selec_img(self, img_list, tips):
+        self.select_img_show.emit(img_list, tips)
+
+    # 获取选中的图片
+    def selected_imgs(self, img_list):
+        self.selected_img.emit(img_list)
 
 
 signal = Signals()
