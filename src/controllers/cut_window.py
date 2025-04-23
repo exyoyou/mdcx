@@ -521,12 +521,38 @@ class _ImageLabel(QLabel):
 
     def __init__(self, image_path, image_data: _SelectImageData = _SelectImageData()):
         super().__init__()
-        self.image_path = image_path
-        self.selected = False  # 初始为未选中
-        self.setPixmap(QPixmap(image_path).scaled(100, 100, Qt.KeepAspectRatio))
-        self.setFixedSize(QSize(100, 100))
-        self.setStyleSheet("border: 1px solid gray;")  # 默认边框样式
         self.image_data = image_data
+        self.image_path = image_path
+        self.selected = False
+        try:
+            pixmap = QPixmap(image_path)
+            if pixmap.isNull():
+                raise ValueError(f"无法加载图片: {image_path}")
+            # 获取原始尺寸
+            original_width = pixmap.width()
+            original_height = pixmap.height()
+
+            # 根据宽高判断缩放比例
+            if original_width > original_height:
+                # 如果宽度大于高度，将宽度缩放为 100，并按比例计算高度
+                scaled_height = int((100 / original_width) * original_height)
+                scaled_pixmap = pixmap.scaled(100, scaled_height, Qt.KeepAspectRatio)
+                self.setFixedSize(QSize(100, scaled_height))  # 设置固定大小
+            else:
+                # 如果高度大于或等于宽度，将高度缩放为 100，并按比例计算宽度
+                scaled_width = int((100 / original_height) * original_width)
+                scaled_pixmap = pixmap.scaled(scaled_width, 100, Qt.KeepAspectRatio)
+                self.setFixedSize(QSize(scaled_width, 100))  # 设置固定大小
+
+            # 设置缩放后的图像
+            self.setPixmap(scaled_pixmap)
+            self.setStyleSheet("border: 1px solid gray;")
+
+        except Exception as e:
+            # print(e)  # 记录错误或显示占位符图片
+            # 显示文本提示
+            self.setText("无法加载图片")
+            self.setStyleSheet("border: 1px solid gray; font-size: 12px; color: red;")
 
     def paintEvent(self, event):
         """重写绘制事件以添加选中标记"""
