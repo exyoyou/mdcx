@@ -7,6 +7,7 @@ import re
 import shutil
 import time
 import traceback
+from typing import Tuple
 import urllib
 
 from lxml import etree
@@ -68,7 +69,7 @@ def google_translate(title, outline):
     return title, outline, e1 or e2
 
 
-def _google_translate(msg: str) -> (str, str):
+def _google_translate(msg: str) -> Tuple[str, str]:
     try:
         msg_unquote = urllib.parse.unquote(msg)
         url = f"https://translate.google.com/translate_a/single?client=gtx&sl=auto&tl=zh-CN&dt=t&q={msg_unquote}"
