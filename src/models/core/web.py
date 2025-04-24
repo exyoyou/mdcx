@@ -26,7 +26,7 @@ from models.base.web import (
 )
 from models.config.config import config
 from models.core.flags import Flags
-from models.core.utils import convert_half
+from models.core.utils import convert_half, save_tmp_frame_from_video
 from models.signals import signal
 
 from PyQt5.QtWidgets import QApplication
@@ -867,7 +867,7 @@ def thumb_download(json_data, folder_new_path, thumb_final_path):
         return True
     else:
         if "ignore_pic_fail" in config.download_files:
-            if json_data.get("temp_image") and len(json_data.get("temp_image")) > 0:
+            if True:
                 json_data[
                     "logs"
                 ] += "\n  🟠 Thumb download failed! (已有视频的截图现在可以选择使用那种截图为 thumb)"
@@ -1081,7 +1081,7 @@ def poster_download(json_data, folder_new_path, poster_final_path):
         return True
     else:
         if "ignore_pic_fail" in download_files:
-            if json_data.get("temp_image") and len(json_data.get("temp_image")) > 0:
+            if True:
                 json_data[
                     "logs"
                 ] += "\n 🟠 Poster cut failed! (你已勾选「图片下载失败时，不视为失败！」\n切现在有视频的截图当前开始选择需要作为Poster的图片) 选择多张只会使用第一张哦"
@@ -1187,7 +1187,7 @@ def fanart_download(json_data, fanart_final_path):
 
         else:
             if "ignore_pic_fail" in download_files:
-                if json_data.get("temp_image") and len(json_data.get("temp_image")) > 0:
+                if True:
                     json_data["logs"] += f"\n 当前开始复制截图为 fanart"
                     imagses = select_imgs(json_data, "选择需要作为 fanart 的截图")
                     for poster_final_path_temp in imagses:
@@ -1366,5 +1366,9 @@ def check_proxyChange():
 
 
 def select_imgs(json_data, tips):
-    imagses = signal.get_select_imgs(json_data["temp_image"], tips)
+    imagses = []
+    if json_data.get("file_path"):
+        imagses = save_tmp_frame_from_video(json_data["file_path"])
+    if len(imagses)>0:
+        imagses = signal.get_select_imgs(imagses, tips)
     return imagses

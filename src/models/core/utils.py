@@ -62,16 +62,14 @@ def show_movie_info(json_data):
 
 
 # 生成临时的截图10张
-def save_tmp_frame_from_video(json_data):
-    img_count = 10
-    video_path = json_data["file_path"]
-    json_data["logs"] += f"\n开始保存截图{img_count}张"
+def save_tmp_frame_from_video(
+    video_path: str, img_count: int = 10, def_save_path: str = "./tmp_img"
+) -> list[str]:
+    img_paths = []
     # 打开视频文件
     cap = cv2.VideoCapture(video_path)
-
     if not cap.isOpened():
-        json_data["logs"] += "无法打开视频文件"
-        return
+        return img_paths
 
     # 获取视频的总帧数
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -104,30 +102,24 @@ def save_tmp_frame_from_video(json_data):
 
         if success:
             # 保存图像
-            img_path = f"./tmp_img/{num}.jpg"
+            img_path = f"{def_save_path}/{num}.jpg"
             # 获取文件夹路径
             folder_path = os.path.dirname(img_path)
 
             # 检查文件夹是否存在，如果不存在则创建
             if not os.path.exists(folder_path):
                 os.makedirs(folder_path)
-                json_data["logs"] += f"\n文件夹 '{folder_path}' 已创建。"
             else:
                 pass
             cv2.imwrite(img_path, frame)
             print(f"已保存帧为图像: {img_path}")
-            json_data["logs"] += f"\n已保存帧为图像: {img_path}"
-            if json_data.get("temp_image"):
-                pass
-            else:
-                json_data["temp_image"] = []
-            json_data["temp_image"].append(img_path)
+            img_paths.append(img_path)
         else:
             print("无法读取帧")
-            json_data["logs"] += f"\n保存截图失败：无法读取帧"
 
     # 释放视频对象
     cap.release()
+    return img_paths
 
 
 def get_video_size(json_data, file_path):
