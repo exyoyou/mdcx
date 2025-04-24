@@ -508,6 +508,65 @@ class CutWindow(QDialog):
         # self.show_traceback_log('main',e.x(),e.y())
 
 
+class _ImagePreviewDialog(QDialog):
+    def __init__(self, image_path: str, parent=None):
+        super().__init__(parent)
+        self.image_path = image_path
+        self.setWindowTitle("大图展示")
+
+        layout = QVBoxLayout(self)
+
+        # 加载大图
+        self.pixmap = QPixmap(image_path)
+
+        # 创建 QLabel 用于显示图像
+        self.image_label = QLabel()
+        self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        # 获取图片信息
+        image_info = f"文件名: {image_path.split('/')[-1]}\n"
+        image_info += f"尺寸: {self.pixmap.width()}x{self.pixmap.height()} 像素\n"
+
+        info_label = QLabel(image_info)
+        info_label.setAlignment(Qt.AlignCenter)
+
+        # 将图片和信息添加到布局中
+        layout.addWidget(self.image_label)
+        layout.addWidget(info_label)
+
+        # 设置对话框的最小大小
+        self.setMinimumSize(500, 500)  # 设置一个合理的最小尺寸
+
+        # 初始化显示图片
+        self.update_image_display()
+
+    def update_image_display(self):
+        """根据窗口大小动态更新图片显示"""
+        if self.image_label and self.pixmap:
+            scaled_pixmap = self.pixmap.scaled(
+                self.size().width(),
+                self.size().height() - 50,  # 留出空间给信息标签
+                Qt.KeepAspectRatio,
+            )
+            self.image_label.setPixmap(scaled_pixmap)
+
+    def resizeEvent(self, event):
+        """当对话框大小改变时保持宽高比并更新图片显示"""
+        super(_ImagePreviewDialog, self).resizeEvent(event)
+        # 计算新的宽度和高度，保持宽高比
+        aspect_ratio = self.pixmap.width() / self.pixmap.height()
+        new_width = int(self.size().height() * aspect_ratio)
+        new_height = int(self.size().width() / aspect_ratio)
+
+        # 调整窗口大小以保持比例
+        if new_width <= self.size().width():
+            self.resize(new_width, self.size().height())
+        else:
+            self.resize(self.size().width(), new_height)
+
+        self.update_image_display()
+
+
 class _SelectImageData(object):
     select_image_paths = []
     all_images = []
@@ -519,11 +578,15 @@ class _ImageLabel(QLabel):
     selection_changed = pyqtSignal(bool)  # 定义信号
     image_data: _SelectImageData
 
-    def __init__(self, image_path, image_data: _SelectImageData = _SelectImageData()):
+    def __init__(
+        self,
+        image_path,
+        image_data: _SelectImageData = _SelectImageData(),
+    ):
         super().__init__()
         self.image_data = image_data
         self.image_path = image_path
-        self.selected = False
+        self.selected = image_path in image_data.select_image_paths
         try:
             pixmap = QPixmap(image_path)
             if pixmap.isNull():
@@ -548,6 +611,9 @@ class _ImageLabel(QLabel):
             self.setPixmap(scaled_pixmap)
             self.setStyleSheet("border: 1px solid gray;")
 
+            self.mouseDoubleClickEvent = (
+                lambda event, img=image_path: self.show_large_image()
+            )
         except Exception as e:
             # print(e)  # 记录错误或显示占位符图片
             # 显示文本提示
@@ -588,7 +654,13 @@ class _ImageLabel(QLabel):
             self.image_data.select_image_paths.append(self.image_path)
         else:
             self.image_data.select_image_paths.remove(self.image_path)
+        self.selection_changed.emit(self.selected)
         self.update()  # 更新界面
+
+    def show_large_image(self):
+        """展示大图和基本信息"""
+        self.selection_changed.emit(self.selected)
+        _ImagePreviewDialog(self.image_path, self).exec()
 
 
 class ImageSelectionDialog(QDialog):
@@ -598,12 +670,12 @@ class ImageSelectionDialog(QDialog):
         self, images: list[str], title: str = "选择图片", timeout: int = 60 * 1000
     ):
         super().__init__()
+        self._img_data.all_images = images
         self.timeout = timeout
         self.setWindowTitle(title)
         self.setGeometry(100, 100, 800, 600)  # 设置默认窗口尺寸
 
         self.thumbnail_interval = 20  # 每个缩略图之间的间隔
-        self.images_per_row = 4  # 每行显示的缩略图数量
 
         # 创建主布局
         main_layout = QVBoxLayout()
@@ -612,26 +684,13 @@ class ImageSelectionDialog(QDialog):
         self.thumbnail_area = QScrollArea(self)
         self.thumbnail_area.setWidgetResizable(True)
         self.thumbnail_area.setMinimumHeight(200)  # 最小高度
+        self.thumbnail_area.setMinimumWidth(200)  # 最小宽度
 
         self.thumbnail_widget = QWidget()
         self.thumbnail_layout = QGridLayout(self.thumbnail_widget)  # 使用网格布局
         self.thumbnail_layout.setSpacing(self.thumbnail_interval)  # 设置缩略图间隔
         self.thumbnail_area.setWidget(self.thumbnail_widget)
         main_layout.addWidget(self.thumbnail_area)
-
-        # 添加缩略图到布局
-        self.labels = []  # 用于存储自定义标签对象
-        self._img_data.all_images = images
-        for i, image in enumerate(images):
-            label = _ImageLabel(image, self._img_data)
-            label.mouseDoubleClickEvent = (
-                lambda event, img=image: self.show_large_image(img)
-            )
-            row = i // self.images_per_row  # 每行显示4个图像
-            col = i % self.images_per_row
-            self.thumbnail_layout.addWidget(label, row, col)
-            self.labels.append(label)  # 保存标签引用
-            label.selection_changed.connect(self.reset_timer)
 
         # 创建确认按钮
         confirm_button = QPushButton("确认", self)
@@ -643,7 +702,7 @@ class ImageSelectionDialog(QDialog):
         )  # 确认按钮右下对齐
 
         # 确保缩略图区域能够尽量填满窗口
-        self.resize_event()
+        # self.resize_event()
         self.setLayout(main_layout)
 
         # 初始化定时器
@@ -651,23 +710,50 @@ class ImageSelectionDialog(QDialog):
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self._on_timeout)  # 超时后关闭对话框
         self.start_timer()
+        # self.populate_thumbnails()
 
-    def resize_event(self):
+        # Initialize a timer for debouncing resize events
+        self.resize_timer = QTimer(self)
+        self.resize_timer.setSingleShot(True)
+        self.resize_timer.timeout.connect(self.populate_thumbnails)
+
+    def resizeEvent(self, event):
         """动态调整缩略图区域的大小"""
-        width = self.thumbnail_area.width()
-        total_spacing = (self.images_per_row - 1) * self.thumbnail_interval
-        available_width = width - total_spacing
+        super().resizeEvent(event)
+        # width = self.thumbnail_area.width()
+        # print("动态调整缩略图区域的大小 width", width)
+        # self.populate_thumbnails()
+        self.resize_timer.start(200)
 
-        # 根据可用宽度和每行显示的图标数量计算单个图标的宽度
-        if self.images_per_row > 0:
-            image_width = available_width // self.images_per_row
-            self.thumbnail_layout.setColumnMinimumWidth(
-                0, image_width
-            )  # 设置第一列的最小宽度
-            for col in range(self.images_per_row):
-                self.thumbnail_layout.setColumnStretch(
-                    col, 1
-                )  # 为每列设置伸展因子，均匀分配空间
+    def populate_thumbnails(self):
+        # 清空现有布局
+        for i in reversed(range(self.thumbnail_layout.count())):
+            widget = self.thumbnail_layout.itemAt(i).widget()
+            if isinstance(widget, _ImageLabel):
+                # 在此处取消信号连接
+                try:
+                    widget.selection_changed.disconnect()  # 确保取消连接
+                except TypeError:
+                    pass  # 如果没有连接，则忽略异常
+            widget.deleteLater()  # 删除控件
+        # 获取可用宽度
+        all_width = self.thumbnail_area.width()
+        for i, image in enumerate(self._img_data.all_images):
+            label = _ImageLabel(image, self._img_data)
+            label_width = (
+                label.width() if label.width() > 0 else 100
+            )  # 避免为0的情况（初次创建可能为0）
+            if label_width <= 0:
+                label_width = 100
+            images_per_row = max(
+                1, int(all_width / (self.thumbnail_interval + label_width))
+            )
+            if images_per_row > len(self._img_data.all_images):
+                images_per_row = len(self._img_data.all_images)
+            row = i // images_per_row
+            col = i % images_per_row
+            self.thumbnail_layout.addWidget(label, row, col)
+            label.selection_changed.connect(self.reset_timer)
 
     def confirm_selection(self):
         """处理确认按钮点击事件"""
@@ -676,42 +762,11 @@ class ImageSelectionDialog(QDialog):
         signal.selected_imgs(self._img_data.select_image_paths)
         self.accept()  # 确认后关闭对话框
 
-    def show_large_image(self, image_path):
-        """展示大图和基本信息"""
-        self.reset_timer()
-        # 创建新对话框
-        large_image_dialog = QDialog(self)
-        large_image_dialog.setWindowTitle("大图展示")
-        layout = QVBoxLayout(large_image_dialog)
-
-        # 加载大图
-        pixmap = QPixmap(image_path)
-        image_label = QLabel()
-        image_label.setPixmap(
-            pixmap.scaled(800, 600, Qt.KeepAspectRatio)
-        )  # 根据需要调整大小
-        image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        # 获取图片信息
-        image_info = f"文件名: {image_path.split('/')[-1]}\n"
-        image_info += f"尺寸: {pixmap.width()}x{pixmap.height()} 像素\n"
-
-        info_label = QLabel(image_info)
-        info_label.setAlignment(Qt.AlignCenter)
-
-        # 将图片和信息添加到布局中
-        layout.addWidget(image_label)
-        layout.addWidget(info_label)
-
-        # 设置对话框大小并展示
-        large_image_dialog.setFixedSize(800, 700)  # 根据需要设置固定大小
-        large_image_dialog.exec_()  # 显示对话框
-
     def start_timer(self):
         """启动计时器"""
         self.timer.start(self.timeout)
 
-    def reset_timer(self):
+    def reset_timer(self, selected: bool = False):
         """重置计时器"""
         self.timer.stop()
         self.start_timer()
