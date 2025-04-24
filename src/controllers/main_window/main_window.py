@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
     QTreeWidgetItem,
 )
 
-from controllers.cut_window import CutWindow
+from controllers.cut_window import CutWindow,ImageSelectionDialog
 from controllers.main_window.init import Init_QSystemTrayIcon, Init_Singal, Init_Ui, init_QTreeWidget
 from controllers.main_window.load_config import load_config
 from controllers.main_window.save_config import save_config
@@ -2319,6 +2319,10 @@ class MyMAinWindow(QMainWindow):
             signal.show_traceback_log(traceback.format_exc())
             self.Ui.textBrowser_net_main.append(traceback.format_exc())
 
+    def show_select_img(self, img_list,tips):
+        select_img_dialog = ImageSelectionDialog(img_list,tips)
+        select_img_dialog.exec()
+        
     # 检查javdb cookie
     def pushButton_check_javdb_cookie_clicked(self):
         input_cookie = self.Ui.plainTextEdit_cookie_javdb.toPlainText()

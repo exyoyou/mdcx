@@ -1,11 +1,23 @@
 import os
+from models.signals import signal
 import threading
 import traceback
 
 from PIL import Image
-from PyQt5.QtCore import QPoint, QRect, Qt
-from PyQt5.QtGui import QCursor, QPixmap
-from PyQt5.QtWidgets import QDialog, QFileDialog, QPushButton
+from PyQt5.QtCore import QPoint, QRect, Qt, QTimer, QSize, pyqtSignal
+from PyQt5.QtGui import QCursor, QPixmap, QPainter, QColor, QFont
+from PyQt5.QtWidgets import (
+    QDialog,
+    QFileDialog,
+    QPushButton,
+    QVBoxLayout,
+    QLabel,
+    QMessageBox,
+    QWidget,
+    QScrollArea,
+    QGridLayout,
+    QSizePolicy,
+)
 
 import models.core.file
 import models.core.image
@@ -59,7 +71,9 @@ class CutWindow(QDialog):
         self.pic_new_h = self.show_h
         self.pic_w = self.show_w
         self.pic_h = self.show_h
-        self.Ui.pushButton_select_cutrange = DraggableButton("拖动选择裁剪范围", self.Ui.label_backgroud_pic, self)
+        self.Ui.pushButton_select_cutrange = DraggableButton(
+            "拖动选择裁剪范围", self.Ui.label_backgroud_pic, self
+        )
         self.Ui.pushButton_select_cutrange.setObjectName("pushButton_select_cutrange")
         self.Ui.pushButton_select_cutrange.setGeometry(QRect(420, 0, 379, 539))
         self.Ui.pushButton_select_cutrange.setCursor(QCursor(Qt.OpenHandCursor))
@@ -82,7 +96,8 @@ class CutWindow(QDialog):
 
     def set_style(self):
         # 控件美化 裁剪弹窗
-        self.Ui.widget.setStyleSheet("""
+        self.Ui.widget.setStyleSheet(
+            """
             * {
                 font-family: Consolas, 'PingFang SC', 'Microsoft YaHei UI', 'Noto Color Emoji', 'Segoe UI Emoji';
             }
@@ -122,7 +137,8 @@ class CutWindow(QDialog):
                 border-width:14px;
                 font-weight:bold;
             }
-            """)
+            """
+        )
 
     def change_postion_left(self):
         # abc: 0-10000
@@ -132,7 +148,9 @@ class CutWindow(QDialog):
         height = (abc + 1) / 10000 * self.pic_h
         self.rect_h_w_ratio = height / width  # 更新高宽比
         self.Ui.label_cut_ratio.setText(str("%.2f" % self.rect_h_w_ratio))
-        self.Ui.pushButton_select_cutrange.setGeometry(x, y, width, height)  # 显示裁剪框
+        self.Ui.pushButton_select_cutrange.setGeometry(
+            x, y, width, height
+        )  # 显示裁剪框
         self.getRealPos()  # 显示裁剪框实际位置
 
     def change_postion_right(self):
@@ -141,13 +159,19 @@ class CutWindow(QDialog):
         width = (abc + 1) / 10000 * self.pic_w
         self.rect_h_w_ratio = height / width  # 更新高宽比
         self.Ui.label_cut_ratio.setText(str("%.2f" % self.rect_h_w_ratio))
-        self.Ui.pushButton_select_cutrange.setGeometry(x, y, width, height)  # 显示裁剪框
+        self.Ui.pushButton_select_cutrange.setGeometry(
+            x, y, width, height
+        )  # 显示裁剪框
         self.getRealPos()  # 显示裁剪框实际位置
 
     # 打开图片选择框
     def open_image(self):
         img_path, img_type = QFileDialog.getOpenFileName(
-            None, "打开图片", "", "*.jpg *.png;;All Files(*)", options=self.parent().options
+            None,
+            "打开图片",
+            "",
+            "*.jpg *.png;;All Files(*)",
+            options=self.parent().options,
         )
         if img_path:
             self.showimage(img_path)
@@ -167,7 +191,9 @@ class CutWindow(QDialog):
         self.cut_thumb_path = ""  # 裁剪后的thumb路径
         self.cut_poster_path = ""  # 裁剪后的poster路径
         self.cut_fanart_path = ""  # 裁剪后的fanart路径
-        self.Ui.label_origin_size.setText(str(f"{str(self.pic_w)}, {str(self.pic_h)}"))  # 显示原图尺寸
+        self.Ui.label_origin_size.setText(
+            str(f"{str(self.pic_w)}, {str(self.pic_h)}")
+        )  # 显示原图尺寸
 
         # 获取水印设置
         poster_mark = config.poster_mark
@@ -180,22 +206,34 @@ class CutWindow(QDialog):
             pic = QPixmap(img_path)
             self.pic_w = pic.width()
             self.pic_h = pic.height()
-            self.Ui.label_origin_size.setText(str(f"{str(self.pic_w)}, {str(self.pic_h)}"))  # 显示原图尺寸
+            self.Ui.label_origin_size.setText(
+                str(f"{str(self.pic_w)}, {str(self.pic_h)}")
+            )  # 显示原图尺寸
             self.pic_h_w_ratio = self.pic_h / self.pic_w  # 原图高宽比
             # abc = int((self.rect_h_w_ratio - 1) * 10000)
             # self.Ui.horizontalSlider_left.setValue(abc)  # 裁剪框左侧调整条的值（最大10000）
             # self.Ui.horizontalSlider_right.setValue(10000 - abc)  # 裁剪框右侧调整条的值（最大10000）和左侧的值反过来
 
             # 背景图片等比缩放并显示
-            if self.pic_h_w_ratio <= self.show_h / self.show_w:  # 水平撑满（图片高/宽 <= 显示区域高/显示区域宽）
+            if (
+                self.pic_h_w_ratio <= self.show_h / self.show_w
+            ):  # 水平撑满（图片高/宽 <= 显示区域高/显示区域宽）
                 self.pic_new_w = self.show_w  # 图片显示的宽度=显示区域宽度
-                self.pic_new_h = int(self.pic_new_w * self.pic_h / self.pic_w)  # 计算出图片显示的高度
+                self.pic_new_h = int(
+                    self.pic_new_w * self.pic_h / self.pic_w
+                )  # 计算出图片显示的高度
             else:  # 垂直撑满
                 self.pic_new_h = self.show_h  # 图片显示的高度=显示区域高度
-                self.pic_new_w = int(self.pic_new_h * self.pic_w / self.pic_h)  # 计算出图片显示的宽度
+                self.pic_new_w = int(
+                    self.pic_new_h * self.pic_w / self.pic_h
+                )  # 计算出图片显示的宽度
 
-            pic = QPixmap.scaled(pic, self.pic_new_w, self.pic_new_h, aspectRatioMode=Qt.KeepAspectRatio)  # 图片缩放
-            self.Ui.label_backgroud_pic.setGeometry(0, 0, self.pic_new_w, self.pic_new_h)  # 背景区域大小位置设置
+            pic = QPixmap.scaled(
+                pic, self.pic_new_w, self.pic_new_h, aspectRatioMode=Qt.KeepAspectRatio
+            )  # 图片缩放
+            self.Ui.label_backgroud_pic.setGeometry(
+                0, 0, self.pic_new_w, self.pic_new_h
+            )  # 背景区域大小位置设置
             self.Ui.label_backgroud_pic.setPixmap(pic)  # 背景区域显示缩放后的图片
 
             # 获取nfo文件名，用来设置裁剪后图片名称和裁剪时的水印状态
@@ -224,7 +262,9 @@ class CutWindow(QDialog):
                     file_show_path,
                 ) = models.core.file.get_file_info(temp_path, copy_sub=False)
 
-            self.setWindowTitle(json_data.get("number") + " 封面图片裁剪")  # 设置窗口标题
+            self.setWindowTitle(
+                json_data.get("number") + " 封面图片裁剪"
+            )  # 设置窗口标题
 
             # 获取水印信息
             has_sub = json_data["has_sub"]
@@ -236,7 +276,10 @@ class CutWindow(QDialog):
             if pic_name == 0:  # 文件名-poster.jpg
                 if "-" in img_name:
                     poster_path = (
-                        img_path.replace("-fanart", "").replace("-thumb", "").replace("-poster", "").replace(img_ex, "")
+                        img_path.replace("-fanart", "")
+                        .replace("-thumb", "")
+                        .replace("-poster", "")
+                        .replace(img_ex, "")
                         + "-poster.jpg"
                     )
             thumb_path = poster_path.replace("poster.", "thumb.")
@@ -282,7 +325,9 @@ class CutWindow(QDialog):
             self.rect_w = self.pic_new_w  # 裁剪框的宽度 = 图片缩放显示的宽度
             self.rect_h = int(self.rect_w * self.rect_h_w_ratio)  # 计算裁剪框的高度
             self.rect_x = 0  # 裁剪框左上角的x值
-            self.rect_y = int((self.pic_new_h - self.rect_h) / 2)  # 裁剪框左上角的y值（默认垂直居中）
+            self.rect_y = int(
+                (self.pic_new_h - self.rect_h) / 2
+            )  # 裁剪框左上角的y值（默认垂直居中）
         self.Ui.pushButton_select_cutrange.setGeometry(
             QRect(self.rect_x, self.rect_y, self.rect_w, self.rect_h)
         )  # 显示裁剪框
@@ -293,7 +338,9 @@ class CutWindow(QDialog):
         # 边界处理
         pic_new_w = self.pic_new_w
         pic_new_h = self.pic_new_h
-        px, py, pw, ph = self.Ui.pushButton_select_cutrange.geometry().getRect()  # 获取裁剪框大小位置
+        px, py, pw, ph = (
+            self.Ui.pushButton_select_cutrange.geometry().getRect()
+        )  # 获取裁剪框大小位置
         pw1 = int(pw / 2)  # 裁剪框一半的宽度
         ph1 = int(ph / 2)  # 裁剪框一半的高度
         if px <= -pw1:  # 左边出去一半
@@ -344,7 +391,9 @@ class CutWindow(QDialog):
         self.c_y = int(self.c_y)
 
         # 显示实际裁剪位置
-        self.Ui.label_cut_postion.setText(f"{str(self.c_x)}, {str(self.c_y)}, {str(self.c_x2)}, {str(self.c_y2)}")
+        self.Ui.label_cut_postion.setText(
+            f"{str(self.c_x)}, {str(self.c_y)}, {str(self.c_x2)}, {str(self.c_y2)}"
+        )
 
         # self.show_traceback_log('选择位置： %s, %s, %s, %s' % (str(self.c_x), str(self.c_y), str(self.c_x2), str(self.c_y2)))
         # 显示实际裁剪尺寸
@@ -364,7 +413,9 @@ class CutWindow(QDialog):
         if not img_path or not os.path.exists(img_path):
             return
         thumb_path = self.cut_thumb_path  # 裁剪后的thumb路径
-        self.parent().img_path = img_path  # 裁剪后更新图片url，这样再次点击时才可以重新加载并裁剪
+        self.parent().img_path = (
+            img_path  # 裁剪后更新图片url，这样再次点击时才可以重新加载并裁剪
+        )
 
         # 读取配置信息
         mark_list = []
@@ -387,7 +438,9 @@ class CutWindow(QDialog):
         try:
             img = Image.open(img_path)
         except:
-            self.parent().show_log_text(f"{traceback.format_exc()}\n Open Pic: {img_path}")
+            self.parent().show_log_text(
+                f"{traceback.format_exc()}\n Open Pic: {img_path}"
+            )
             return False
         img = img.convert("RGB")
         img_new_png = img.crop((self.c_x, self.c_y, self.c_x2, self.c_y2))
@@ -395,7 +448,9 @@ class CutWindow(QDialog):
             if os.path.exists(self.cut_poster_path):
                 delete_file(self.cut_poster_path)
         except Exception as e:
-            self.parent().show_log_text(" 🔴 Failed to remove old poster!\n    " + str(e))
+            self.parent().show_log_text(
+                " 🔴 Failed to remove old poster!\n    " + str(e)
+            )
             return False
         img_new_png.save(self.cut_poster_path, quality=95, subsampling=0)
         # poster加水印
@@ -428,7 +483,9 @@ class CutWindow(QDialog):
         img_new_png.close()
 
         # 在主界面显示预览
-        self.parent().set_pixmap_thread(self.cut_poster_path, thumb_path, poster_from="cut", cover_from="local")
+        self.parent().set_pixmap_thread(
+            self.cut_poster_path, thumb_path, poster_from="cut", cover_from="local"
+        )
         self.parent().change_to_mainpage.emit("")
         return True
 
@@ -449,3 +506,268 @@ class CutWindow(QDialog):
                 self.move(e.globalPos() - self.m_DragPosition)
                 e.accept()
         # self.show_traceback_log('main',e.x(),e.y())
+
+
+class _ImagePreviewDialog(QDialog):
+    def __init__(self, image_path: str, parent=None):
+        super().__init__(parent)
+        self.image_path = image_path
+        self.setWindowTitle("大图展示")
+
+        layout = QVBoxLayout(self)
+
+        # 加载大图
+        self.pixmap = QPixmap(image_path)
+
+        # 创建 QLabel 用于显示图像
+        self.image_label = QLabel()
+        self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        # 获取图片信息
+        image_info = f"文件名: {image_path.split('/')[-1]}\n"
+        image_info += f"尺寸: {self.pixmap.width()}x{self.pixmap.height()} 像素\n"
+
+        info_label = QLabel(image_info)
+        info_label.setAlignment(Qt.AlignCenter)
+
+        # 将图片和信息添加到布局中
+        layout.addWidget(self.image_label)
+        layout.addWidget(info_label)
+
+        # 设置对话框的最小大小
+        self.setMinimumSize(500, 500)  # 设置一个合理的最小尺寸
+
+        # 初始化显示图片
+        self.update_image_display()
+
+    def update_image_display(self):
+        """根据窗口大小动态更新图片显示"""
+        if self.image_label and self.pixmap:
+            scaled_pixmap = self.pixmap.scaled(
+                self.size().width(),
+                self.size().height() - 50,  # 留出空间给信息标签
+                Qt.KeepAspectRatio,
+            )
+            self.image_label.setPixmap(scaled_pixmap)
+        signal.close_re_outtime_selected_img.emit()
+
+    def resizeEvent(self, event):
+        """当对话框大小改变时保持宽高比并更新图片显示"""
+        super(_ImagePreviewDialog, self).resizeEvent(event)
+        # 计算新的宽度和高度，保持宽高比
+        aspect_ratio = self.pixmap.width() / self.pixmap.height()
+        new_width = int(self.size().height() * aspect_ratio)
+        new_height = int(self.size().width() / aspect_ratio)
+
+        # 调整窗口大小以保持比例
+        if new_width <= self.size().width():
+            self.resize(new_width, self.size().height())
+        else:
+            self.resize(self.size().width(), new_height)
+
+        self.update_image_display()
+
+
+class _SelectImageData(object):
+    select_image_paths = []
+    all_images = []
+
+
+class _ImageLabel(QLabel):
+    """自定义标签类，用于显示图像和处理选择状态"""
+
+    image_data: _SelectImageData
+
+    def __init__(
+        self,
+        image_path,
+        image_data: _SelectImageData = _SelectImageData(),
+    ):
+        super().__init__()
+        self.image_data = image_data
+        self.image_path = image_path
+        self.selected = image_path in image_data.select_image_paths
+        try:
+            pixmap = QPixmap(image_path)
+            if pixmap.isNull():
+                raise ValueError(f"无法加载图片: {image_path}")
+            # 获取原始尺寸
+            original_width = pixmap.width()
+            original_height = pixmap.height()
+
+            # 根据宽高判断缩放比例
+            if original_width > original_height:
+                # 如果宽度大于高度，将宽度缩放为 100，并按比例计算高度
+                scaled_height = int((100 / original_width) * original_height)
+                scaled_pixmap = pixmap.scaled(100, scaled_height, Qt.KeepAspectRatio)
+                self.setFixedSize(QSize(100, scaled_height))  # 设置固定大小
+            else:
+                # 如果高度大于或等于宽度，将高度缩放为 100，并按比例计算宽度
+                scaled_width = int((100 / original_height) * original_width)
+                scaled_pixmap = pixmap.scaled(scaled_width, 100, Qt.KeepAspectRatio)
+                self.setFixedSize(QSize(scaled_width, 100))  # 设置固定大小
+
+            # 设置缩放后的图像
+            self.setPixmap(scaled_pixmap)
+            self.setStyleSheet("border: 1px solid gray;")
+
+            self.mouseDoubleClickEvent = (
+                lambda event, img=image_path: self.show_large_image()
+            )
+        except Exception as e:
+            # print(e)  # 记录错误或显示占位符图片
+            # 显示文本提示
+            self.setText("无法加载图片")
+            self.setStyleSheet("border: 1px solid gray; font-size: 12px; color: red;")
+
+    def paintEvent(self, event):
+        """重写绘制事件以添加选中标记"""
+        super().paintEvent(event)
+        if self.selected:
+            painter = QPainter(self)
+            # 在右上角绘制背景框
+            painter.setPen(QColor(0, 128, 255))
+            painter.setBrush(QColor(0, 128, 255, 200))  # 半透明填充
+            rect_width = 30
+            rect_height = 20
+            x_pos = self.width() - rect_width
+            y_pos = 0
+
+            painter.drawRect(x_pos, y_pos, rect_width, rect_height)  # 绘制背景框
+
+            # 设置字体并绘制索引
+            painter.setPen(QColor(255, 255, 255))  # 白色字体
+            painter.setFont(QFont("Arial", 10))  # 字体和大小
+            painter.drawText(
+                x_pos + 5, y_pos + 15, str(len(self.image_data.select_image_paths))
+            )  # 从1开始编号
+        signal.close_re_outtime_selected_img.emit()
+
+    def mousePressEvent(self, event):
+        """处理鼠标按下事件，切换选中状态"""
+        if event.button() == Qt.LeftButton:  # 左键点击
+            self.toggle_selection()
+
+    def toggle_selection(self):
+        """切换选中状态并更新显示"""
+        self.selected = not self.selected
+        if self.selected:
+            self.image_data.select_image_paths.append(self.image_path)
+        else:
+            self.image_data.select_image_paths.remove(self.image_path)
+        signal.close_re_outtime_selected_img.emit()
+        self.update()  # 更新界面
+
+    def show_large_image(self):
+        """展示大图和基本信息"""
+        signal.close_re_outtime_selected_img.emit()
+        _ImagePreviewDialog(self.image_path, self).exec()
+
+
+class ImageSelectionDialog(QDialog):
+    _img_data: _SelectImageData = _SelectImageData()
+
+    def __init__(
+        self, images: list[str], title: str = "选择图片", timeout: int = 60 * 1000
+    ):
+        super().__init__()
+        self._img_data.all_images = images
+        self.timeout = timeout
+        self.setWindowTitle(title)
+        self.setGeometry(100, 100, 800, 600)  # 设置默认窗口尺寸
+
+        self.thumbnail_interval = 20  # 每个缩略图之间的间隔
+
+        # 创建主布局
+        main_layout = QVBoxLayout()
+
+        # 图片的缩略图显示区域
+        self.thumbnail_area = QScrollArea(self)
+        self.thumbnail_area.setWidgetResizable(True)
+        self.thumbnail_area.setMinimumHeight(200)  # 最小高度
+        self.thumbnail_area.setMinimumWidth(200)  # 最小宽度
+
+        self.thumbnail_widget = QWidget()
+        self.thumbnail_layout = QGridLayout(self.thumbnail_widget)  # 使用网格布局
+        self.thumbnail_layout.setSpacing(self.thumbnail_interval)  # 设置缩略图间隔
+        self.thumbnail_area.setWidget(self.thumbnail_widget)
+        main_layout.addWidget(self.thumbnail_area)
+
+        # 创建确认按钮
+        confirm_button = QPushButton("确认", self)
+        confirm_button.clicked.connect(self.confirm_selection)
+
+        # 添加确认按钮到布局，并减少与缩略图之间的间隔
+        main_layout.addWidget(
+            confirm_button, alignment=Qt.AlignRight | Qt.AlignBottom
+        )  # 确认按钮右下对齐
+
+        # 确保缩略图区域能够尽量填满窗口
+        # self.resize_event()
+        self.setLayout(main_layout)
+
+        # 初始化定时器
+        self.timer = QTimer(self)
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self._on_timeout)  # 超时后关闭对话框
+        self.start_timer()
+        # self.populate_thumbnails()
+
+        # Initialize a timer for debouncing resize events
+        self.resize_timer = QTimer(self)
+        self.resize_timer.setSingleShot(True)
+        self.resize_timer.timeout.connect(self.populate_thumbnails)
+
+        signal.close_re_outtime_selected_img.connect(self.reset_timer)
+
+    def resizeEvent(self, event):
+        """动态调整缩略图区域的大小"""
+        super().resizeEvent(event)
+        # width = self.thumbnail_area.width()
+        # print("动态调整缩略图区域的大小 width", width)
+        # self.populate_thumbnails()
+        self.resize_timer.start(200)
+
+    def populate_thumbnails(self):
+        # 清空现有布局
+        for i in reversed(range(self.thumbnail_layout.count())):
+            widget = self.thumbnail_layout.itemAt(i).widget()
+            widget.deleteLater()  # 删除控件
+        # 获取可用宽度
+        all_width = self.thumbnail_area.width()
+        for i, image in enumerate(self._img_data.all_images):
+            label = _ImageLabel(image, self._img_data)
+            label_width = (
+                label.width() if label.width() > 0 else 100
+            )  # 避免为0的情况（初次创建可能为0）
+            if label_width <= 0:
+                label_width = 100
+            images_per_row = max(
+                1, int(all_width / (self.thumbnail_interval + label_width))
+            )
+            if images_per_row > len(self._img_data.all_images):
+                images_per_row = len(self._img_data.all_images)
+            row = i // images_per_row
+            col = i % images_per_row
+            self.thumbnail_layout.addWidget(label, row, col)
+
+    def confirm_selection(self):
+        """处理确认按钮点击事件"""
+        # selected_images = [label.image_path for label in self.labels if label.selected]
+        # print(f"已选择的图片: {selected_images}")  # 输出已选择的图片路径
+        signal.send_ok_select_imgs(self._img_data.select_image_paths)
+        self.accept()  # 确认后关闭对话框
+
+    def start_timer(self):
+        """启动计时器"""
+        self.timer.start(self.timeout)
+
+    def reset_timer(self, selected: bool = False):
+        """重置计时器"""
+        self.timer.stop()
+        self.start_timer()
+
+    def _on_timeout(self):
+        # 超时返回所有
+        signal.send_ok_select_imgs(self._img_data.all_images)
+        self.reject()

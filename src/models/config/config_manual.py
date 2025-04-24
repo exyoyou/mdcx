@@ -540,7 +540,8 @@ class ManualConfig:
         "theporndb": "theporndb",
         "prestige": "prestige",
         "javhdporn": "javhdporn",
-        "local":"local",
+        "local": "local",
+        "fc2cm": "fc2cm",
     }
     char_list = [
         "[高清] (中文字幕)",
@@ -566,8 +567,16 @@ class ManualConfig:
         "导演剪辑最终版",
         "堂友",
     ]
-    all_key_word = ["title", "originaltitle", "outline",
-                    "originalplot", "series", "director", "studio", "publisher"]
+    all_key_word = [
+        "title",
+        "originaltitle",
+        "outline",
+        "originalplot",
+        "series",
+        "director",
+        "studio",
+        "publisher",
+    ]
     all_rep_word = {
         # 将网页中存在二次抓取的&amp;(实际意义为&)的字符全局替换成＆（大写的&，不会被emby误判，显示更美观）
         "&amp;": "＆",

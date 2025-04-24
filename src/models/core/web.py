@@ -7,6 +7,7 @@ import re
 import shutil
 import time
 import traceback
+from typing import Tuple
 import urllib
 
 from lxml import etree
@@ -15,11 +16,21 @@ from models.base.file import copy_file, delete_file, move_file, split_path
 from models.base.image import check_pic, cut_thumb_to_poster
 from models.base.pool import Pool
 from models.base.utils import get_used_time
-from models.base.web import check_url, get_amazon_data, get_big_pic_by_google, get_html, get_imgsize, multi_download
+from models.base.web import (
+    check_url,
+    get_amazon_data,
+    get_big_pic_by_google,
+    get_html,
+    get_imgsize,
+    multi_download,
+)
 from models.config.config import config
 from models.core.flags import Flags
-from models.core.utils import convert_half
+from models.core.utils import convert_half, save_tmp_frame_from_video
 from models.signals import signal
+
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import QEventLoop
 
 
 def get_actorname(number):
@@ -32,9 +43,13 @@ def get_actorname(number):
     actor_box = html_detail.xpath('//ul[@class="post-meta clearfix"]')
     for each in actor_box:
         actor_name = each.xpath('li[@class="actress-name"]/a/text()')
-        actor_number = each.xpath('li[@class="actress-name"]/following-sibling::li[last()]/text()')
+        actor_number = each.xpath(
+            'li[@class="actress-name"]/following-sibling::li[last()]/text()'
+        )
         if actor_number:
-            if actor_number[0].upper().endswith(number.upper()) or number.upper().endswith(actor_number[0].upper()):
+            if actor_number[0].upper().endswith(
+                number.upper()
+            ) or number.upper().endswith(actor_number[0].upper()):
                 return True, ",".join(actor_name)
     return False, "No Result!"
 
@@ -68,7 +83,7 @@ def google_translate(title, outline):
     return title, outline, e1 or e2
 
 
-def _google_translate(msg: str) -> (str, str):
+def _google_translate(msg: str) -> Tuple[str, str]:
     try:
         msg_unquote = urllib.parse.unquote(msg)
         url = f"https://translate.google.com/translate_a/single?client=gtx&sl=auto&tl=zh-CN&dt=t&q={msg_unquote}"
@@ -96,12 +111,22 @@ def download_file_with_filepath(json_data, url, file_path, folder_new_path):
 
 
 def _mutil_extrafanart_download_thread(task):
-    json_data, extrafanart_url, extrafanart_file_path, extrafanart_folder_path, extrafanart_name = task
-    if download_file_with_filepath(json_data, extrafanart_url, extrafanart_file_path, extrafanart_folder_path):
+    (
+        json_data,
+        extrafanart_url,
+        extrafanart_file_path,
+        extrafanart_folder_path,
+        extrafanart_name,
+    ) = task
+    if download_file_with_filepath(
+        json_data, extrafanart_url, extrafanart_file_path, extrafanart_folder_path
+    ):
         if check_pic(extrafanart_file_path):
             return True
     else:
-        json_data["logs"] += f"\n 💡 {extrafanart_name} download failed! ( {extrafanart_url} )"
+        json_data[
+            "logs"
+        ] += f"\n 💡 {extrafanart_name} download failed! ( {extrafanart_url} )"
         return False
 
 
@@ -115,21 +140,29 @@ def get_big_pic_by_amazon(json_data, originaltitle_amazon, actor_amazon):
         # 需要两次urlencode，nb_sb_noss表示无推荐来源
         url_search = (
             "https://www.amazon.co.jp/black-curtain/save-eligibility/black-curtain?returnUrl=/s?k="
-            + urllib.parse.quote_plus(urllib.parse.quote_plus(originaltitle_amazon.replace("&", " ") + " [DVD]"))
+            + urllib.parse.quote_plus(
+                urllib.parse.quote_plus(
+                    originaltitle_amazon.replace("&", " ") + " [DVD]"
+                )
+            )
             + "&ref=nb_sb_noss"
         )
         result, html_search = get_amazon_data(url_search)
 
         # 没有结果，尝试拆词，重新搜索
         if (
-            "キーワードが正しく入力されていても一致する商品がない場合は、別の言葉をお試しください。" in html_search
+            "キーワードが正しく入力されていても一致する商品がない場合は、別の言葉をお試しください。"
+            in html_search
             and len(originaltitle_amazon_list) < 2
         ):
             for each_name in originaltitle_amazon.split(" "):
                 if each_name not in originaltitle_amazon_list:
                     if (
                         len(each_name) > 8
-                        or (not each_name.encode("utf-8").isalnum() and len(each_name) > 4)
+                        or (
+                            not each_name.encode("utf-8").isalnum()
+                            and len(each_name) > 4
+                        )
                         and each_name not in actor_amazon
                     ):
                         originaltitle_amazon_list.append(each_name)
@@ -142,29 +175,41 @@ def get_big_pic_by_amazon(json_data, originaltitle_amazon, actor_amazon):
             originaltitle_amazon_half_no_actor = originaltitle_amazon_half
 
             # 标题缩短匹配（如无结果，则使用缩小标题再次搜索）
-            if "検索に一致する商品はありませんでした。" in html_search and len(originaltitle_amazon_list) < 2:
+            if (
+                "検索に一致する商品はありませんでした。" in html_search
+                and len(originaltitle_amazon_list) < 2
+            ):
                 short_originaltitle_amazon = html.xpath(
                     '//div[@class="a-section a-spacing-base a-spacing-top-base"]/span[@class="a-size-base a-color-base"]/text()'
                 )
                 if short_originaltitle_amazon:
-                    short_originaltitle_amazon = short_originaltitle_amazon[0].upper().replace(" DVD", "")
+                    short_originaltitle_amazon = (
+                        short_originaltitle_amazon[0].upper().replace(" DVD", "")
+                    )
                     if short_originaltitle_amazon in originaltitle_amazon.upper():
                         originaltitle_amazon_list.append(short_originaltitle_amazon)
-                        short_originaltitle_amazon = convert_half(short_originaltitle_amazon)
+                        short_originaltitle_amazon = convert_half(
+                            short_originaltitle_amazon
+                        )
                         if short_originaltitle_amazon in originaltitle_amazon_half:
                             originaltitle_amazon_half = short_originaltitle_amazon
                 for each_name in originaltitle_amazon.split(" "):
                     if each_name not in originaltitle_amazon_list:
                         if (
                             len(each_name) > 8
-                            or (not each_name.encode("utf-8").isalnum() and len(each_name) > 4)
+                            or (
+                                not each_name.encode("utf-8").isalnum()
+                                and len(each_name) > 4
+                            )
                             and each_name not in actor_amazon
                         ):
                             originaltitle_amazon_list.append(each_name)
 
             # 标题不带演员名匹配
             for each_actor in actor_amazon:
-                originaltitle_amazon_half_no_actor = originaltitle_amazon_half_no_actor.replace(each_actor.upper(), "")
+                originaltitle_amazon_half_no_actor = (
+                    originaltitle_amazon_half_no_actor.replace(each_actor.upper(), "")
+                )
 
             # 检查搜索结果
             actor_result_list = set()
@@ -178,28 +223,43 @@ def get_big_pic_by_amazon(json_data, originaltitle_amazon, actor_amazon):
                 pic_title_list = each.xpath(
                     'div//h2[@class="a-size-base-plus a-spacing-none a-color-base a-text-normal"]/span/text()'
                 )
-                pic_url_list = each.xpath('div//div[@class="a-section aok-relative s-image-square-aspect"]/img/@src')
-                detail_url_list = each.xpath('div//a[@class="a-link-normal s-no-outline"]/@href')
-                if len(pic_ver_list) and len(pic_url_list) and (len(pic_title_list) and len(detail_url_list)):
+                pic_url_list = each.xpath(
+                    'div//div[@class="a-section aok-relative s-image-square-aspect"]/img/@src'
+                )
+                detail_url_list = each.xpath(
+                    'div//a[@class="a-link-normal s-no-outline"]/@href'
+                )
+                if (
+                    len(pic_ver_list)
+                    and len(pic_url_list)
+                    and (len(pic_title_list) and len(detail_url_list))
+                ):
                     pic_ver = pic_ver_list[0]  # 图片版本
                     pic_title = pic_title_list[0]  # 图片标题
                     pic_url = pic_url_list[0]  # 图片链接
                     detail_url = detail_url_list[0]  # 详情页链接（有时带有演员名）
-                    if pic_ver in ["DVD", "Software Download"] and ".jpg" in pic_url:  # 无图时是.gif
+                    if (
+                        pic_ver in ["DVD", "Software Download"] and ".jpg" in pic_url
+                    ):  # 无图时是.gif
                         pic_title_half = convert_half(re.sub(r"【.*】", "", pic_title))
                         pic_title_half_no_actor = pic_title_half
                         for each_actor in actor_amazon:
-                            pic_title_half_no_actor = pic_title_half_no_actor.replace(each_actor, "")
+                            pic_title_half_no_actor = pic_title_half_no_actor.replace(
+                                each_actor, ""
+                            )
 
                         # 判断标题是否命中
                         if (
                             originaltitle_amazon_half[:15] in pic_title_half
-                            or originaltitle_amazon_half_no_actor[:15] in pic_title_half_no_actor
+                            or originaltitle_amazon_half_no_actor[:15]
+                            in pic_title_half_no_actor
                         ):
                             detail_url = urllib.parse.unquote_plus(detail_url)
                             temp_title = re.findall(r"(.+)keywords=", detail_url)
                             temp_detail_url = (
-                                temp_title[0] + pic_title_half if temp_title else detail_url + pic_title_half
+                                temp_title[0] + pic_title_half
+                                if temp_title
+                                else detail_url + pic_title_half
                             )
                             url = re.sub(r"\._[_]?AC_[^\.]+\.", ".", pic_url)
 
@@ -213,11 +273,15 @@ def get_big_pic_by_amazon(json_data, originaltitle_amazon, actor_amazon):
                                             hd_pic_url = url
                                             return hd_pic_url
                                         else:
-                                            json_data["poster"] = pic_url  # 用于 Google 搜图
+                                            json_data["poster"] = (
+                                                pic_url  # 用于 Google 搜图
+                                            )
                                             json_data["poster_from"] = "Amazon"
                                     break
                             else:
-                                title_result_list.append([url, "https://www.amazon.co.jp" + detail_url])
+                                title_result_list.append(
+                                    [url, "https://www.amazon.co.jp" + detail_url]
+                                )
 
             # 命中演员有多个结果时返回最大的（不等于1759/1758）
             if len(actor_result_list):
@@ -225,7 +289,9 @@ def get_big_pic_by_amazon(json_data, originaltitle_amazon, actor_amazon):
                 for each in actor_result_list:
                     new_pic_w = get_imgsize(each)[0]
                     if new_pic_w > pic_w:
-                        if new_pic_w >= 1770 or (1750 > new_pic_w > 600):  # 不要小图 FCDSS-001，截短的图（1758/1759）
+                        if new_pic_w >= 1770 or (
+                            1750 > new_pic_w > 600
+                        ):  # 不要小图 FCDSS-001，截短的图（1758/1759）
                             pic_w = new_pic_w
                             hd_pic_url = each
                         else:
@@ -238,25 +304,39 @@ def get_big_pic_by_amazon(json_data, originaltitle_amazon, actor_amazon):
             # 当搜索结果命中了标题，没有命中演员时，尝试去详情页获取演员信息
             elif (
                 len(title_result_list) <= 20
-                and "s-pagination-item s-pagination-next s-pagination-button s-pagination-separator" not in html_search
+                and "s-pagination-item s-pagination-next s-pagination-button s-pagination-separator"
+                not in html_search
             ):
                 for each in title_result_list[:4]:
                     try:
-                        url_new = "https://www.amazon.co.jp" + re.findall(r"(/dp/[^/]+)", each[1])[0]
+                        url_new = (
+                            "https://www.amazon.co.jp"
+                            + re.findall(r"(/dp/[^/]+)", each[1])[0]
+                        )
                     except:
                         url_new = each[1]
                     result, html_detail = get_amazon_data(url_new)
                     if result and html_detail:
                         html = etree.fromstring(html_detail, etree.HTMLParser())
-                        detail_actor = str(html.xpath('//span[@class="author notFaded"]/a/text()')).replace(" ", "")
+                        detail_actor = str(
+                            html.xpath('//span[@class="author notFaded"]/a/text()')
+                        ).replace(" ", "")
                         detail_info_1 = str(
-                            html.xpath('//ul[@class="a-unordered-list a-vertical a-spacing-mini"]//text()')
+                            html.xpath(
+                                '//ul[@class="a-unordered-list a-vertical a-spacing-mini"]//text()'
+                            )
                         ).replace(" ", "")
                         detail_info_2 = str(
-                            html.xpath('//div[@id="detailBulletsWrapper_feature_div"]//text()')
+                            html.xpath(
+                                '//div[@id="detailBulletsWrapper_feature_div"]//text()'
+                            )
                         ).replace(" ", "")
-                        detail_info_3 = str(html.xpath('//div[@id="productDescription"]//text()')).replace(" ", "")
-                        all_info = detail_actor + detail_info_1 + detail_info_2 + detail_info_3
+                        detail_info_3 = str(
+                            html.xpath('//div[@id="productDescription"]//text()')
+                        ).replace(" ", "")
+                        all_info = (
+                            detail_actor + detail_info_1 + detail_info_2 + detail_info_3
+                        )
                         for each_actor in actor_amazon:
                             if each_actor in all_info:
                                 w, h = get_imgsize(each[0])
@@ -268,12 +348,18 @@ def get_big_pic_by_amazon(json_data, originaltitle_amazon, actor_amazon):
 
             # 有很多结果时（有下一页按钮），加演员名字重新搜索
             if (
-                "s-pagination-item s-pagination-next s-pagination-button s-pagination-separator" in html_search
+                "s-pagination-item s-pagination-next s-pagination-button s-pagination-separator"
+                in html_search
                 or len(title_result_list) > 5
             ):
                 amazon_orginaltitle_actor = json_data.get("amazon_orginaltitle_actor")
-                if amazon_orginaltitle_actor and amazon_orginaltitle_actor not in originaltitle_amazon:
-                    originaltitle_amazon_list.append(f"{originaltitle_amazon} {amazon_orginaltitle_actor}")
+                if (
+                    amazon_orginaltitle_actor
+                    and amazon_orginaltitle_actor not in originaltitle_amazon
+                ):
+                    originaltitle_amazon_list.append(
+                        f"{originaltitle_amazon} {amazon_orginaltitle_actor}"
+                    )
 
     return hd_pic_url
 
@@ -318,21 +404,30 @@ def trailer_download(json_data, folder_new_path, folder_old_path, naming_rule):
                 delete_file(trailer_file_path)
             if os.path.exists(trailer_old_folder_path):
                 shutil.rmtree(trailer_old_folder_path, ignore_errors=True)
-            if trailer_new_folder_path != trailer_old_folder_path and os.path.exists(trailer_new_folder_path):
+            if trailer_new_folder_path != trailer_old_folder_path and os.path.exists(
+                trailer_new_folder_path
+            ):
                 shutil.rmtree(trailer_new_folder_path, ignore_errors=True)
             return
 
     # 选择保留文件，当存在文件时，不下载。（done trailer path 未设置时，把当前文件设置为 done trailer path，以便其他分集复制）
     if "trailer" in keep_files and os.path.exists(trailer_file_path):
         if not Flags.file_done_dic.get(json_data["number"]).get("trailer"):
-            Flags.file_done_dic[json_data["number"]].update({"trailer": trailer_file_path})
+            Flags.file_done_dic[json_data["number"]].update(
+                {"trailer": trailer_file_path}
+            )
             # 带文件名时，删除掉新、旧文件夹，用不到了。（其他分集如果没有，可以复制第一个文件的预告片。此时不删，没机会删除了）
             if trailer_name == 0:
                 if os.path.exists(trailer_old_folder_path):
                     shutil.rmtree(trailer_old_folder_path, ignore_errors=True)
-                if trailer_new_folder_path != trailer_old_folder_path and os.path.exists(trailer_new_folder_path):
+                if (
+                    trailer_new_folder_path != trailer_old_folder_path
+                    and os.path.exists(trailer_new_folder_path)
+                ):
                     shutil.rmtree(trailer_new_folder_path, ignore_errors=True)
-        json_data["logs"] += "\n 🍀 Trailer done! (old)(%ss) " % get_used_time(start_time)
+        json_data["logs"] += "\n 🍀 Trailer done! (old)(%ss) " % get_used_time(
+            start_time
+        )
         return True
 
     # 带文件名时，选择下载不保留，或者选择保留但没有预告片，检查是否有其他分集已下载或本地预告片
@@ -342,7 +437,9 @@ def trailer_download(json_data, folder_new_path, folder_old_path, naming_rule):
         if os.path.exists(trailer_file_path):
             delete_file(trailer_file_path)
         copy_file(done_trailer_path, trailer_file_path)
-        json_data["logs"] += "\n 🍀 Trailer done! (copy trailer)(%ss)" % get_used_time(start_time)
+        json_data["logs"] += "\n 🍀 Trailer done! (copy trailer)(%ss)" % get_used_time(
+            start_time
+        )
         return
 
     # 不下载时返回（选择不下载保留，但本地并不存在，此时返回）
@@ -358,33 +455,49 @@ def trailer_download(json_data, folder_new_path, folder_old_path, naming_rule):
 
         # 开始下载
         download_files = config.download_files
-        signal.show_traceback_log(f"🍔 {json_data['number']} download trailer... {trailer_url}")
+        signal.show_traceback_log(
+            f"🍔 {json_data['number']} download trailer... {trailer_url}"
+        )
         trailer_file_path_temp = trailer_file_path
         if os.path.exists(trailer_file_path):
             trailer_file_path_temp = trailer_file_path + ".[DOWNLOAD].mp4"
-        if download_file_with_filepath(json_data, trailer_url, trailer_file_path_temp, trailer_folder_path):
+        if download_file_with_filepath(
+            json_data, trailer_url, trailer_file_path_temp, trailer_folder_path
+        ):
             file_size = os.path.getsize(trailer_file_path_temp)
             if file_size >= content_length or "ignore_size" in download_files:
                 json_data["logs"] += "\n 🍀 Trailer done! ({} {}/{})({}s) ".format(
-                    json_data["trailer_from"], file_size, content_length, get_used_time(start_time)
+                    json_data["trailer_from"],
+                    file_size,
+                    content_length,
+                    get_used_time(start_time),
                 )
                 signal.show_traceback_log(f"✅ {json_data['number']} trailer done!")
                 if trailer_file_path_temp != trailer_file_path:
                     move_file(trailer_file_path_temp, trailer_file_path)
                     delete_file(trailer_file_path_temp)
-                done_trailer_path = Flags.file_done_dic.get(json_data["number"]).get("trailer")
+                done_trailer_path = Flags.file_done_dic.get(json_data["number"]).get(
+                    "trailer"
+                )
                 if not done_trailer_path:
-                    Flags.file_done_dic[json_data["number"]].update({"trailer": trailer_file_path})
-                    if trailer_name == 0:  # 带文件名，已下载成功，删除掉那些不用的文件夹即可
+                    Flags.file_done_dic[json_data["number"]].update(
+                        {"trailer": trailer_file_path}
+                    )
+                    if (
+                        trailer_name == 0
+                    ):  # 带文件名，已下载成功，删除掉那些不用的文件夹即可
                         if os.path.exists(trailer_old_folder_path):
                             shutil.rmtree(trailer_old_folder_path, ignore_errors=True)
-                        if trailer_new_folder_path != trailer_old_folder_path and os.path.exists(
-                            trailer_new_folder_path
+                        if (
+                            trailer_new_folder_path != trailer_old_folder_path
+                            and os.path.exists(trailer_new_folder_path)
                         ):
                             shutil.rmtree(trailer_new_folder_path, ignore_errors=True)
                 return True
             else:
-                json_data["logs"] += "\n 🟠 Trailer size is incorrect! delete it! ({} {}/{}) ".format(
+                json_data[
+                    "logs"
+                ] += "\n 🟠 Trailer size is incorrect! delete it! ({} {}/{}) ".format(
                     json_data["trailer_from"], file_size, content_length
                 )
         # 删除下载失败的文件
@@ -394,14 +507,21 @@ def trailer_download(json_data, folder_new_path, folder_old_path, naming_rule):
     if os.path.exists(trailer_file_path):  # 使用旧文件
         done_trailer_path = Flags.file_done_dic.get(json_data["number"]).get("trailer")
         if not done_trailer_path:
-            Flags.file_done_dic[json_data["number"]].update({"trailer": trailer_file_path})
+            Flags.file_done_dic[json_data["number"]].update(
+                {"trailer": trailer_file_path}
+            )
             if trailer_name == 0:  # 带文件名，已下载成功，删除掉那些不用的文件夹即可
                 if os.path.exists(trailer_old_folder_path):
                     shutil.rmtree(trailer_old_folder_path, ignore_errors=True)
-                if trailer_new_folder_path != trailer_old_folder_path and os.path.exists(trailer_new_folder_path):
+                if (
+                    trailer_new_folder_path != trailer_old_folder_path
+                    and os.path.exists(trailer_new_folder_path)
+                ):
                     shutil.rmtree(trailer_new_folder_path, ignore_errors=True)
         json_data["logs"] += "\n 🟠 Trailer download failed! 将继续使用之前的本地文件！"
-        json_data["logs"] += "\n 🍀 Trailer done! (old)(%ss)" % get_used_time(start_time)
+        json_data["logs"] += "\n 🍀 Trailer done! (old)(%ss)" % get_used_time(
+            start_time
+        )
         return True
 
 
@@ -443,7 +563,8 @@ def _get_big_thumb(json_data):
             result, response = get_html(req_url)
             if result:
                 temp_url = re.findall(
-                    r'src="((https://cdn.faleno.net/top/wp-content/uploads/[^_]+_)([^?]+))\?output-quality=', response
+                    r'src="((https://cdn.faleno.net/top/wp-content/uploads/[^_]+_)([^?]+))\?output-quality=',
+                    response,
                 )
                 if temp_url:
                     json_data["cover"] = temp_url[0][0]
@@ -451,16 +572,33 @@ def _get_big_thumb(json_data):
                     json_data["cover_from"] = "faleno"
                     json_data["poster_from"] = "faleno"
                     json_data["poster_big"] = True
-                    trailer_temp = re.findall(r'class="btn09"><a class="pop_sample" href="([^"]+)', response)
+                    trailer_temp = re.findall(
+                        r'class="btn09"><a class="pop_sample" href="([^"]+)', response
+                    )
                     if trailer_temp:
                         json_data["trailer"] = trailer_temp[0]
                         json_data["trailer_from"] = "faleno"
-                    json_data["logs"] += "\n 🖼 HD Thumb found! (faleno)(%ss)" % get_used_time(start_time)
+                    json_data[
+                        "logs"
+                    ] += "\n 🖼 HD Thumb found! (faleno)(%ss)" % get_used_time(
+                        start_time
+                    )
                     return json_data
 
         # km-produce.com 番号检查
         number_letter = letters.lower()
-        kmp_key = ["vrkm", "mdtm", "mkmp", "savr", "bibivr", "scvr", "slvr", "averv", "kbvr", "cbikmv"]
+        kmp_key = [
+            "vrkm",
+            "mdtm",
+            "mkmp",
+            "savr",
+            "bibivr",
+            "scvr",
+            "slvr",
+            "averv",
+            "kbvr",
+            "cbikmv",
+        ]
         prestige_key = ["abp", "abw", "aka", "prdvr", "pvrbst", "sdvr", "docvr"]
         if number_letter in kmp_key:
             req_url = f"https://km-produce.com/img/title1/{number_lower_line}.jpg"
@@ -468,7 +606,9 @@ def _get_big_thumb(json_data):
             if real_url:
                 json_data["cover"] = real_url
                 json_data["cover_from"] = "km-produce"
-                json_data["logs"] += "\n 🖼 HD Thumb found! (km-produce)(%ss)" % (get_used_time(start_time))
+                json_data["logs"] += "\n 🖼 HD Thumb found! (km-produce)(%ss)" % (
+                    get_used_time(start_time)
+                )
                 return json_data
 
         # www.prestige-av.com 番号检查
@@ -486,7 +626,9 @@ def _get_big_thumb(json_data):
                     json_data["cover_from"] = "prestige"
                     json_data["poster_from"] = "prestige"
                     json_data["poster_big"] = True
-                    json_data["logs"] += "\n 🖼 HD Thumb found! (prestige)(%ss)" % (get_used_time(start_time))
+                    json_data["logs"] += "\n 🖼 HD Thumb found! (prestige)(%ss)" % (
+                        get_used_time(start_time)
+                    )
                     return json_data
 
     # 使用google以图搜图
@@ -516,7 +658,9 @@ def _get_big_poster(json_data):
     # 如果有大图时，直接下载
     if json_data.get("poster_big") and get_imgsize(json_data["poster"])[1] > 600:
         json_data["image_download"] = True
-        json_data["logs"] += f"\n 🖼 HD Poster found! ({json_data['poster_from']})({get_used_time(start_time)}s)"
+        json_data[
+            "logs"
+        ] += f"\n 🖼 HD Poster found! ({json_data['poster_from']})({get_used_time(start_time)}s)"
         return json_data
 
     # 初始化数据
@@ -537,7 +681,9 @@ def _get_big_poster(json_data):
         "动漫",
         "動漫",
     ]:
-        hd_pic_url = get_big_pic_by_amazon(json_data, json_data["originaltitle_amazon"], json_data["actor_amazon"])
+        hd_pic_url = get_big_pic_by_amazon(
+            json_data, json_data["originaltitle_amazon"], json_data["actor_amazon"]
+        )
         if hd_pic_url:
             json_data["poster"] = hd_pic_url
             json_data["poster_from"] = "Amazon"
@@ -554,15 +700,21 @@ def _get_big_poster(json_data):
         letters = json_data["letters"].upper()
         official_url = config.official_websites.get(letters)
         if official_url:
-            url_search = official_url + "/search/list?keyword=" + number.replace("-", "")
+            url_search = (
+                official_url + "/search/list?keyword=" + number.replace("-", "")
+            )
             result, html_search = get_html(url_search)
             if result:
-                poster_url_list = re.findall(r'img class="c-main-bg lazyload" data-src="([^"]+)"', html_search)
+                poster_url_list = re.findall(
+                    r'img class="c-main-bg lazyload" data-src="([^"]+)"', html_search
+                )
                 if poster_url_list:
                     # 使用官网图作为封面去 google 搜索
                     poster_url = poster_url_list[0]
                     json_data["poster"] = poster_url
-                    json_data["poster_from"] = official_url.split(".")[-2].replace("https://", "")
+                    json_data["poster_from"] = official_url.split(".")[-2].replace(
+                        "https://", ""
+                    )
                     # vr作品或者官网图片高度大于500时，下载封面图开
                     if "VR" in number.upper() or get_imgsize(poster_url)[1] > 500:
                         json_data["image_download"] = True
@@ -577,7 +729,10 @@ def _get_big_poster(json_data):
     ):
         hd_pic_url, poster_size = get_big_pic_by_google(poster_url, poster=True)
         if hd_pic_url:
-            if "prestige" in json_data["poster"] or json_data["poster_from"] == "Amazon":
+            if (
+                "prestige" in json_data["poster"]
+                or json_data["poster_from"] == "Amazon"
+            ):
                 poster_width = get_imgsize(poster_url)[0]
             if poster_size[0] > poster_width:
                 json_data["poster"] = hd_pic_url
@@ -608,9 +763,13 @@ def thumb_download(json_data, folder_new_path, thumb_final_path):
 
     # 如果thumb不下载，看fanart、poster要不要下载，都不下载则返回
     if "thumb" not in config.download_files:
-        if "poster" in config.download_files and ("poster" not in config.keep_files or not poster_path):
+        if "poster" in config.download_files and (
+            "poster" not in config.keep_files or not poster_path
+        ):
             pass
-        elif "fanart" in config.download_files and ("fanart" not in config.keep_files or not fanart_path):
+        elif "fanart" in config.download_files and (
+            "fanart" not in config.keep_files or not fanart_path
+        ):
             pass
         else:
             return True
@@ -624,7 +783,9 @@ def thumb_download(json_data, folder_new_path, thumb_final_path):
             and split_path(done_thumb_path)[0] == split_path(thumb_final_path)[0]
         ):
             copy_file(done_thumb_path, thumb_final_path)
-            json_data["logs"] += "\n 🍀 Thumb done! (copy cd-thumb)(%ss) " % get_used_time(start_time)
+            json_data[
+                "logs"
+            ] += "\n 🍀 Thumb done! (copy cd-thumb)(%ss) " % get_used_time(start_time)
             json_data["cover_from"] = "copy cd-thumb"
             json_data["thumb_path"] = thumb_final_path
             return True
@@ -651,11 +812,14 @@ def thumb_download(json_data, folder_new_path, thumb_final_path):
             cover_url = check_url(cover_url)
             if not cover_url:
                 json_data["logs"] += (
-                    f"\n 🟠 检测到 Thumb 图片失效! 跳过！({cover_from})({get_used_time(start_time)}s) " + each[1]
+                    f"\n 🟠 检测到 Thumb 图片失效! 跳过！({cover_from})({get_used_time(start_time)}s) "
+                    + each[1]
                 )
                 continue
             json_data["cover_from"] = cover_from
-            if download_file_with_filepath(json_data, cover_url, thumb_final_path_temp, folder_new_path):
+            if download_file_with_filepath(
+                json_data, cover_url, thumb_final_path_temp, folder_new_path
+            ):
                 cover_size = check_pic(thumb_final_path_temp)
                 if cover_size:
                     if (
@@ -664,7 +828,9 @@ def thumb_download(json_data, folder_new_path, thumb_final_path):
                         or (
                             cover_size[0] >= 800
                             and abs(
-                                cover_size[0] / cover_size[1] - json_data["cover_size"][0] / json_data["cover_size"][1]
+                                cover_size[0] / cover_size[1]
+                                - json_data["cover_size"][0]
+                                / json_data["cover_size"][1]
                             )
                             <= 0.1
                         )
@@ -684,11 +850,13 @@ def thumb_download(json_data, folder_new_path, thumb_final_path):
                         return True
                     else:
                         delete_file(thumb_final_path_temp)
-                        json_data["logs"] += (
-                            f"\n 🟠 检测到 Thumb 分辨率不对{str(cover_size)}! 已删除 ({cover_from})({get_used_time(start_time)}s)"
-                        )
+                        json_data[
+                            "logs"
+                        ] += f"\n 🟠 检测到 Thumb 分辨率不对{str(cover_size)}! 已删除 ({cover_from})({get_used_time(start_time)}s)"
                         continue
-                json_data["logs"] += f"\n 🟠 Thumb download failed! {cover_from}: {cover_url} "
+                json_data[
+                    "logs"
+                ] += f"\n 🟠 Thumb download failed! {cover_from}: {cover_url} "
     else:
         json_data["logs"] += "\n 🟠 Thumb url is empty! "
 
@@ -699,13 +867,63 @@ def thumb_download(json_data, folder_new_path, thumb_final_path):
         return True
     else:
         if "ignore_pic_fail" in config.download_files:
-            json_data["logs"] += "\n 🟠 Thumb download failed! (你已勾选「图片下载失败时，不视为失败！」) "
-            json_data["logs"] += "\n 🍀 Thumb done! (none)(%ss)" % get_used_time(start_time)
+            if True:
+                json_data[
+                    "logs"
+                ] += "\n  🟠 Thumb download failed! (已有视频的截图现在可以选择使用那种截图为 thumb)"
+
+                imagses = select_imgs(json_data, "选择需要作为 thumb 的截图")
+                json_data["cover_from"] = "复制截图"
+                for thumb_final_path_temp in imagses:
+                    cover_size = check_pic(thumb_final_path_temp)
+                    if cover_size:
+                        if (
+                            not cover_from.startswith("Google")
+                            or cover_size == json_data["cover_size"]
+                            or (
+                                cover_size[0] >= 800
+                                and abs(
+                                    cover_size[0] / cover_size[1]
+                                    - json_data["cover_size"][0]
+                                    / json_data["cover_size"][1]
+                                )
+                                <= 0.1
+                            )
+                        ):
+                            # 图片下载正常，替换旧的 thumb.jpg
+                            if thumb_final_path_temp != thumb_final_path:
+                                copy_file(thumb_final_path_temp, thumb_final_path)
+                                # delete_file(thumb_final_path_temp)
+                            if json_data["cd_part"]:
+                                dic = {"thumb": thumb_final_path}
+                                Flags.file_done_dic[json_data["number"]].update(dic)
+                            json_data["thumb_marked"] = False  # 表示还没有走加水印流程
+                            json_data[
+                                "logs"
+                            ] += f"\n 🍀 截图添加到{thumb_final_path_temp} Thumb done! ({json_data["cover_from"]})({get_used_time(start_time)}s) "
+                            json_data["thumb_path"] = thumb_final_path
+                            return True
+                        else:
+                            # delete_file(thumb_final_path_temp)
+                            json_data[
+                                "logs"
+                            ] += f"\n 🟠 检测到 选中的截图{thumb_final_path_temp} 作为Thumb 分辨率不对{str(cover_size)}! 这里不删除截图 ({cover_from})({get_used_time(start_time)}s)"
+                            continue
+                    json_data[
+                        "logs"
+                    ] += f"\n 🟠 Thumb 截图选择 完毕! {cover_from}: {thumb_final_path_temp} "
+            else:
+                json_data[
+                    "logs"
+                ] += "\n 🟠 Thumb download failed! (你已勾选「图片下载失败时，不视为失败！」) "
+                json_data["logs"] += "\n 🍀 Thumb done! (none)(%ss)" % get_used_time(
+                    start_time
+                )
             return True
         else:
-            json_data["logs"] += (
-                "\n 🔴 Thumb download failed! 你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」 "
-            )
+            json_data[
+                "logs"
+            ] += "\n 🔴 Thumb download failed! 你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」 "
             json_data["error_info"] = (
                 "Thumb download failed! 你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」"
             )
@@ -747,7 +965,9 @@ def poster_download(json_data, folder_new_path, poster_final_path):
             copy_file(done_poster_path, poster_final_path)
             json_data["poster_from"] = "copy cd-poster"
             json_data["poster_path"] = poster_final_path
-            json_data["logs"] += "\n 🍀 Poster done! (copy cd-poster)(%ss)" % get_used_time(start_time)
+            json_data[
+                "logs"
+            ] += "\n 🍀 Poster done! (copy cd-poster)(%ss)" % get_used_time(start_time)
             return True
 
     # 勾选复制 thumb时：国产，复制thumb；无码，勾选不裁剪时，也复制thumb
@@ -775,7 +995,9 @@ def poster_download(json_data, folder_new_path, poster_final_path):
             json_data["poster_marked"] = json_data["thumb_marked"]
             json_data["poster_from"] = "copy thumb"
             json_data["poster_path"] = poster_final_path
-            json_data["logs"] += "\n 🍀 Poster done! (copy thumb)(%ss)" % get_used_time(start_time)
+            json_data["logs"] += "\n 🍀 Poster done! (copy thumb)(%ss)" % get_used_time(
+                start_time
+            )
             return True
 
     # 获取高清 poster
@@ -789,7 +1011,9 @@ def poster_download(json_data, folder_new_path, poster_final_path):
         poster_final_path_temp = poster_final_path + ".[DOWNLOAD].jpg"
     if json_data["image_download"]:
         start_time = time.time()
-        if download_file_with_filepath(json_data, poster_url, poster_final_path_temp, folder_new_path):
+        if download_file_with_filepath(
+            json_data, poster_url, poster_final_path_temp, folder_new_path
+        ):
             poster_size = check_pic(poster_final_path_temp)
             if poster_size:
                 if (
@@ -805,23 +1029,31 @@ def poster_download(json_data, folder_new_path, poster_final_path):
                         Flags.file_done_dic[json_data["number"]].update(dic)
                     json_data["poster_marked"] = False  # 下载的图，还没加水印
                     json_data["poster_path"] = poster_final_path
-                    json_data["logs"] += f"\n 🍀 Poster done! ({poster_from})({get_used_time(start_time)}s)"
+                    json_data[
+                        "logs"
+                    ] += f"\n 🍀 Poster done! ({poster_from})({get_used_time(start_time)}s)"
                     return True
                 else:
                     delete_file(poster_final_path_temp)
-                    json_data["logs"] += f"\n 🟠 检测到 Poster 分辨率不对{str(poster_size)}! 已删除 ({poster_from})"
+                    json_data[
+                        "logs"
+                    ] += f"\n 🟠 检测到 Poster 分辨率不对{str(poster_size)}! 已删除 ({poster_from})"
 
     # 判断之前有没有 poster 和 thumb
     if not poster_path and not thumb_path:
         json_data["poster_path"] = ""
         if "ignore_pic_fail" in download_files:
-            json_data["logs"] += "\n 🟠 Poster download failed! (你已勾选「图片下载失败时，不视为失败！」) "
-            json_data["logs"] += "\n 🍀 Poster done! (none)(%ss)" % get_used_time(start_time)
+            json_data[
+                "logs"
+            ] += "\n 🟠 Poster download failed! (你已勾选「图片下载失败时，不视为失败！」) "
+            json_data["logs"] += "\n 🍀 Poster done! (none)(%ss)" % get_used_time(
+                start_time
+            )
             return True
         else:
-            json_data["logs"] += (
-                "\n 🔴 Poster download failed! 你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」 "
-            )
+            json_data[
+                "logs"
+            ] += "\n 🔴 Poster download failed! 你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」 "
             json_data["error_info"] = (
                 "Poster download failed! 你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」"
             )
@@ -844,18 +1076,43 @@ def poster_download(json_data, folder_new_path, poster_final_path):
     # 裁剪失败，本地有图
     if poster_path:
         json_data["logs"] += "\n 🟠 Poster cut failed! 将继续使用之前的图片！"
-        json_data["logs"] += "\n 🍀 Poster done! (old)(%ss) " % get_used_time(start_time)
+        json_data["logs"] += "\n 🍀 Poster done! (old)(%ss) " % get_used_time(
+            start_time
+        )
         return True
     else:
         if "ignore_pic_fail" in download_files:
-            json_data["logs"] += "\n 🟠 Poster cut failed! (你已勾选「图片下载失败时，不视为失败！」) "
-            json_data["logs"] += "\n 🍀 Poster done! (none)(%ss)" % get_used_time(start_time)
+            if True:
+                json_data[
+                    "logs"
+                ] += "\n 🟠 Poster cut failed! (你已勾选「图片下载失败时，不视为失败！」\n切现在有视频的截图当前开始选择需要作为Poster的图片) 选择多张只会使用第一张哦"
+                imagses = select_imgs(json_data, "选择需要作为 Poster 的截图")
+                for poster_final_path_temp in imagses:
+                    copy_file(thumb_path, poster_final_path)
+                    json_data["poster_from"] = "复制截图"
+                    json_data["poster_path"] = poster_final_path
+                    json_data["poster_marked"] = False
+
+                    json_data["logs"] += (
+                        "\n 🍀 Poster done! (复制截图%s)(%ss)" % poster_final_path_temp,
+                        get_used_time(start_time),
+                    )
+                    break
+            else:
+                json_data[
+                    "logs"
+                ] += "\n 🟠 Poster cut failed! (你已勾选「图片下载失败时，不视为失败！」) "
+                json_data["logs"] += "\n 🍀 Poster done! (none)(%ss)" % get_used_time(
+                    start_time
+                )
             return True
         else:
-            json_data["logs"] += (
-                "\n 🔴 Poster cut failed! 你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」 "
+            json_data[
+                "logs"
+            ] += "\n 🔴 Poster cut failed! 你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」 "
+            json_data["error_info"] = (
+                "Poster failed！你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」"
             )
-            json_data["error_info"] = "Poster failed！你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」"
             return False
 
 
@@ -897,7 +1154,9 @@ def fanart_download(json_data, fanart_final_path):
             copy_file(done_fanart_path, fanart_final_path)
             json_data["fanart_from"] = "copy cd-fanart"
             json_data["fanart_path"] = fanart_final_path
-            json_data["logs"] += "\n 🍀 Fanart done! (copy cd-fanart)(%ss)" % get_used_time(start_time)
+            json_data[
+                "logs"
+            ] += "\n 🍀 Fanart done! (copy cd-fanart)(%ss)" % get_used_time(start_time)
             return True
 
     # 复制thumb
@@ -908,7 +1167,9 @@ def fanart_download(json_data, fanart_final_path):
         json_data["fanart_from"] = "copy thumb"
         json_data["fanart_path"] = fanart_final_path
         json_data["fanart_marked"] = json_data["thumb_marked"]
-        json_data["logs"] += "\n 🍀 Fanart done! (copy thumb)(%ss)" % get_used_time(start_time)
+        json_data["logs"] += "\n 🍀 Fanart done! (copy thumb)(%ss)" % get_used_time(
+            start_time
+        )
         if json_data["cd_part"]:
             dic = {"fanart": fanart_final_path}
             Flags.file_done_dic[json_data["number"]].update(dic)
@@ -916,19 +1177,42 @@ def fanart_download(json_data, fanart_final_path):
     else:
         # 本地有 fanart 时，不下载
         if fanart_path:
-            json_data["logs"] += "\n 🟠 Fanart copy failed! 未找到 thumb 图片，将继续使用之前的图片！"
-            json_data["logs"] += "\n 🍀 Fanart done! (old)(%ss)" % get_used_time(start_time)
+            json_data[
+                "logs"
+            ] += "\n 🟠 Fanart copy failed! 未找到 thumb 图片，将继续使用之前的图片！"
+            json_data["logs"] += "\n 🍀 Fanart done! (old)(%ss)" % get_used_time(
+                start_time
+            )
             return True
 
         else:
             if "ignore_pic_fail" in download_files:
-                json_data["logs"] += "\n 🟠 Fanart failed! (你已勾选「图片下载失败时，不视为失败！」) "
-                json_data["logs"] += "\n 🍀 Fanart done! (none)(%ss)" % get_used_time(start_time)
+                if True:
+                    json_data["logs"] += f"\n 当前开始复制截图为 fanart"
+                    imagses = select_imgs(json_data, "选择需要作为 fanart 的截图")
+                    for poster_final_path_temp in imagses:
+                        copy_file(thumb_path, fanart_final_path)
+                        json_data["fanart_from"] = "复制截图"
+                        json_data["fanart_path"] = fanart_final_path
+                        json_data["fanart_marked"] = False
+                        json_data["logs"] += (
+                            "\n 🍀 Fanart done! (复制截图%s)(%ss)"
+                            % poster_final_path_temp,
+                            get_used_time(start_time),
+                        )
+                        break
+                else:
+                    json_data[
+                        "logs"
+                    ] += "\n 🟠 Fanart failed! (你已勾选「图片下载失败时，不视为失败！」) "
+                    json_data[
+                        "logs"
+                    ] += "\n 🍀 Fanart done! (none)(%ss)" % get_used_time(start_time)
                 return True
             else:
-                json_data["logs"] += (
-                    "\n 🔴 Fanart failed! 你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」 "
-                )
+                json_data[
+                    "logs"
+                ] += "\n 🔴 Fanart failed! 你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」 "
                 json_data["error_info"] = (
                     "Fanart 下载失败！你可以到「设置」-「下载」，勾选「图片下载失败时，不视为失败！」"
                 )
@@ -950,7 +1234,9 @@ def extrafanart_download(json_data, folder_new_path):
 
     # 本地存在 extrafanart_folder，且勾选保留旧文件时，不下载
     if "extrafanart" in keep_files and os.path.exists(extrafanart_folder_path):
-        json_data["logs"] += "\n 🍀 Extrafanart done! (old)(%ss) " % get_used_time(start_time)
+        json_data["logs"] += "\n 🍀 Extrafanart done! (old)(%ss) " % get_used_time(
+            start_time
+        )
         return True
 
     # 如果 extrafanart 不下载
@@ -973,9 +1259,17 @@ def extrafanart_download(json_data, folder_new_path):
         for extrafanart_url in extrafanart_list:
             extrafanart_count += 1
             extrafanart_name = "fanart" + str(extrafanart_count) + ".jpg"
-            extrafanart_file_path = os.path.join(extrafanart_folder_path_temp, extrafanart_name)
+            extrafanart_file_path = os.path.join(
+                extrafanart_folder_path_temp, extrafanart_name
+            )
             task_list.append(
-                [json_data, extrafanart_url, extrafanart_file_path, extrafanart_folder_path_temp, extrafanart_name]
+                [
+                    json_data,
+                    extrafanart_url,
+                    extrafanart_file_path,
+                    extrafanart_folder_path_temp,
+                    extrafanart_name,
+                ]
             )
         extrafanart_pool = Pool(20)  # 剧照下载线程池
         result = extrafanart_pool.map(_mutil_extrafanart_download_thread, task_list)
@@ -987,22 +1281,54 @@ def extrafanart_download(json_data, folder_new_path):
                 shutil.rmtree(extrafanart_folder_path)
                 os.rename(extrafanart_folder_path_temp, extrafanart_folder_path)
             json_data["logs"] += "\n 🍀 ExtraFanart done! ({} {}/{})({}s)".format(
-                json_data["extrafanart_from"], extrafanart_count_succ, extrafanart_count, get_used_time(start_time)
+                json_data["extrafanart_from"],
+                extrafanart_count_succ,
+                extrafanart_count,
+                get_used_time(start_time),
             )
             return True
         else:
-            json_data["logs"] += "\n 🟠  ExtraFanart download failed! ({} {}/{})({}s)".format(
-                json_data["extrafanart_from"], extrafanart_count_succ, extrafanart_count, get_used_time(start_time)
+            json_data[
+                "logs"
+            ] += "\n 🟠  ExtraFanart download failed! ({} {}/{})({}s)".format(
+                json_data["extrafanart_from"],
+                extrafanart_count_succ,
+                extrafanart_count,
+                get_used_time(start_time),
             )
             if extrafanart_folder_path_temp != extrafanart_folder_path:
                 shutil.rmtree(extrafanart_folder_path_temp)
             else:
-                json_data["logs"] += "\n 🍀 ExtraFanart done! (incomplete)(%ss)" % get_used_time(start_time)
+                json_data[
+                    "logs"
+                ] += "\n 🍀 ExtraFanart done! (incomplete)(%ss)" % get_used_time(
+                    start_time
+                )
                 return False
-        json_data["logs"] += "\n 🟠 ExtraFanart download failed! 将继续使用之前的本地文件！"
+        json_data[
+            "logs"
+        ] += "\n 🟠 ExtraFanart download failed! 将继续使用之前的本地文件！"
     if os.path.exists(extrafanart_folder_path):  # 使用旧文件
-        json_data["logs"] += "\n 🍀 ExtraFanart done! (old)(%ss)" % get_used_time(start_time)
+        json_data["logs"] += "\n 🍀 ExtraFanart done! (old)(%ss)" % get_used_time(
+            start_time
+        )
         return True
+
+    if "ignore_pic_fail" in download_files:
+        if True:
+            json_data["logs"] += f"\n 当前开始复制截图为 剧照"
+            imagses = select_imgs(json_data, "选择需要作为 剧照 的截图")
+            json_data["extrafanart_from"] = "复制截图"
+            if not os.path.exists(extrafanart_folder_path):
+                os.mkdir(extrafanart_folder_path)
+            extrafanart_count = 0
+            for poster_final_path_temp in imagses:
+                extrafanart_count += 1
+                extrafanart_name = "fanart" + str(extrafanart_count) + ".jpg"
+                copy_file(
+                    poster_final_path_temp,
+                    os.path.join(extrafanart_folder_path, extrafanart_name),
+                )
 
 
 def show_netstatus():
@@ -1012,7 +1338,12 @@ def show_netstatus():
     proxy = ""
     timeout = 0
     try:
-        proxy_type, proxy, timeout, retry_count = config.type, config.proxy, config.timeout, config.retry
+        proxy_type, proxy, timeout, retry_count = (
+            config.type,
+            config.proxy,
+            config.timeout,
+            config.retry,
+        )
     except:
         signal.show_traceback_log(traceback.format_exc())
         signal.show_net_info(traceback.format_exc())
@@ -1048,3 +1379,12 @@ def check_proxyChange():
             signal.show_net_info("\n🌈 代理设置已改变：")
             show_netstatus()
     Flags.current_proxy = new_proxy
+
+
+def select_imgs(json_data, tips):
+    imagses = []
+    if json_data.get("file_path"):
+        imagses = save_tmp_frame_from_video(json_data["file_path"])
+    if len(imagses) > 0:
+        imagses = signal.get_select_imgs(imagses, tips)
+    return imagses
