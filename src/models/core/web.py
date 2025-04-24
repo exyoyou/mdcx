@@ -873,6 +873,7 @@ def thumb_download(json_data, folder_new_path, thumb_final_path):
                 ] += "\n  🟠 Thumb download failed! (已有视频的截图现在可以选择使用那种截图为 thumb)"
 
                 imagses = select_imgs(json_data, "选择需要作为 thumb 的截图")
+                json_data["cover_from"] = "复制截图"
                 for thumb_final_path_temp in imagses:
                     cover_size = check_pic(thumb_final_path_temp)
                     if cover_size:
@@ -1088,13 +1089,12 @@ def poster_download(json_data, folder_new_path, poster_final_path):
                 imagses = select_imgs(json_data, "选择需要作为 Poster 的截图")
                 for poster_final_path_temp in imagses:
                     copy_file(thumb_path, poster_final_path)
-                    json_data["poster_from"] = "复制 截图"
+                    json_data["poster_from"] = "复制截图"
                     json_data["poster_path"] = poster_final_path
                     json_data["poster_marked"] = False
 
                     json_data["logs"] += (
-                        "\n 🍀 Poster done! (复制 截图%s)(%ss)"
-                        % poster_final_path_temp,
+                        "\n 🍀 Poster done! (复制截图%s)(%ss)" % poster_final_path_temp,
                         get_used_time(start_time),
                     )
                     break
@@ -1314,6 +1314,22 @@ def extrafanart_download(json_data, folder_new_path):
         )
         return True
 
+    if "ignore_pic_fail" in download_files:
+        if True:
+            json_data["logs"] += f"\n 当前开始复制截图为 剧照"
+            imagses = select_imgs(json_data, "选择需要作为 剧照 的截图")
+            json_data["extrafanart_from"] = "复制截图"
+            if not os.path.exists(extrafanart_folder_path):
+                os.mkdir(extrafanart_folder_path)
+            extrafanart_count = 0
+            for poster_final_path_temp in imagses:
+                extrafanart_count += 1
+                extrafanart_name = "fanart" + str(extrafanart_count) + ".jpg"
+                copy_file(
+                    poster_final_path_temp,
+                    os.path.join(extrafanart_folder_path, extrafanart_name),
+                )
+
 
 def show_netstatus():
     signal.show_net_info(time.strftime("%Y-%m-%d %H:%M:%S").center(80, "="))
@@ -1369,6 +1385,6 @@ def select_imgs(json_data, tips):
     imagses = []
     if json_data.get("file_path"):
         imagses = save_tmp_frame_from_video(json_data["file_path"])
-    if len(imagses)>0:
+    if len(imagses) > 0:
         imagses = signal.get_select_imgs(imagses, tips)
     return imagses
