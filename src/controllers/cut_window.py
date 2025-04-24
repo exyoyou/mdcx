@@ -549,6 +549,7 @@ class _ImagePreviewDialog(QDialog):
                 Qt.KeepAspectRatio,
             )
             self.image_label.setPixmap(scaled_pixmap)
+        signal.close_re_outtime_selected_img.emit()
 
     def resizeEvent(self, event):
         """当对话框大小改变时保持宽高比并更新图片显示"""
@@ -575,7 +576,6 @@ class _SelectImageData(object):
 class _ImageLabel(QLabel):
     """自定义标签类，用于显示图像和处理选择状态"""
 
-    selection_changed = pyqtSignal(bool)  # 定义信号
     image_data: _SelectImageData
 
     def __init__(
@@ -641,6 +641,7 @@ class _ImageLabel(QLabel):
             painter.drawText(
                 x_pos + 5, y_pos + 15, str(len(self.image_data.select_image_paths))
             )  # 从1开始编号
+        signal.close_re_outtime_selected_img.emit()
 
     def mousePressEvent(self, event):
         """处理鼠标按下事件，切换选中状态"""
@@ -654,12 +655,12 @@ class _ImageLabel(QLabel):
             self.image_data.select_image_paths.append(self.image_path)
         else:
             self.image_data.select_image_paths.remove(self.image_path)
-        self.selection_changed.emit(self.selected)
+        signal.close_re_outtime_selected_img.emit()
         self.update()  # 更新界面
 
     def show_large_image(self):
         """展示大图和基本信息"""
-        self.selection_changed.emit(self.selected)
+        signal.close_re_outtime_selected_img.emit()
         _ImagePreviewDialog(self.image_path, self).exec()
 
 
@@ -717,6 +718,8 @@ class ImageSelectionDialog(QDialog):
         self.resize_timer.setSingleShot(True)
         self.resize_timer.timeout.connect(self.populate_thumbnails)
 
+        signal.close_re_outtime_selected_img.connect(self.reset_timer)
+
     def resizeEvent(self, event):
         """动态调整缩略图区域的大小"""
         super().resizeEvent(event)
@@ -729,12 +732,6 @@ class ImageSelectionDialog(QDialog):
         # 清空现有布局
         for i in reversed(range(self.thumbnail_layout.count())):
             widget = self.thumbnail_layout.itemAt(i).widget()
-            if isinstance(widget, _ImageLabel):
-                # 在此处取消信号连接
-                try:
-                    widget.selection_changed.disconnect()  # 确保取消连接
-                except TypeError:
-                    pass  # 如果没有连接，则忽略异常
             widget.deleteLater()  # 删除控件
         # 获取可用宽度
         all_width = self.thumbnail_area.width()
@@ -753,13 +750,12 @@ class ImageSelectionDialog(QDialog):
             row = i // images_per_row
             col = i % images_per_row
             self.thumbnail_layout.addWidget(label, row, col)
-            label.selection_changed.connect(self.reset_timer)
 
     def confirm_selection(self):
         """处理确认按钮点击事件"""
         # selected_images = [label.image_path for label in self.labels if label.selected]
         # print(f"已选择的图片: {selected_images}")  # 输出已选择的图片路径
-        signal.selected_imgs(self._img_data.select_image_paths)
+        signal.send_ok_select_imgs(self._img_data.select_image_paths)
         self.accept()  # 确认后关闭对话框
 
     def start_timer(self):
@@ -773,5 +769,5 @@ class ImageSelectionDialog(QDialog):
 
     def _on_timeout(self):
         # 超时返回所有
-        signal.selected_imgs(self._img_data.all_images)
+        signal.send_ok_select_imgs(self._img_data.all_images)
         self.reject()

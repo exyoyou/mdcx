@@ -29,8 +29,9 @@ from models.core.flags import Flags
 from models.core.utils import convert_half
 from models.signals import signal
 
-from PyQt5.QtWidgets import  QApplication
+from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QEventLoop
+
 
 def get_actorname(number):
     # 获取真实演员名字
@@ -1364,27 +1365,6 @@ def check_proxyChange():
     Flags.current_proxy = new_proxy
 
 
-
 def select_imgs(json_data, tips):
-    imagses = []
-
-    def 选择回调(imgs):
-        imagses.extend(imgs)  # 收集选中的图片
-
-    signal.selected_img.connect(选择回调)
-    
-    # 发出信号以打开选择器
-    signal.show_selec_img(json_data["temp_image"], tips)
-
-    # 使用 QEventLoop 来等待信号
-    loop = QEventLoop()
-
-    # 当接收到信号时退出事件循环
-    signal.selected_img.connect(loop.quit)
-
-    loop.exec()  # 进入事件循环，直到 quit 被调用
-
-    signal.selected_img.disconnect(选择回调)  # 断开信号连接
-    signal.selected_img.disconnect(loop.quit)    # 断开用于退出循环的连接
-
+    imagses = signal.get_select_imgs(json_data["temp_image"], tips)
     return imagses
